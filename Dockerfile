@@ -27,7 +27,7 @@ FROM deps AS development
 COPY requirements-dev.txt .
 RUN pip install --no-cache-dir -r requirements-dev.txt
 COPY . .
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8001", "--reload"]
+CMD ["uvicorn", "src.api.app:app", "--host", "0.0.0.0", "--port", "8001", "--reload"]
 
 # --- 本番用 ---
 FROM deps AS production
@@ -35,4 +35,4 @@ COPY . .
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 USER appuser
 EXPOSE 8001
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "2"]
+CMD ["uvicorn", "src.api.app:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "2"]

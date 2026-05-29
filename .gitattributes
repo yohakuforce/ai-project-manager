@@ -1,0 +1,19 @@
+# Enforce LF line endings for all text files.
+# Prevents CRLF issues when the repo is cloned on Windows (Docker / shell scripts).
+* text=auto eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+*.sh text eol=lf
+*.env.example text eol=lf
+Dockerfile text eol=lf
+
+# Binary files — do not apply line-ending conversion
+*.png binary
+*.jpg binary
+*.gif binary
+*.mp3 binary
+*.mp4 binary
+*.wav binary

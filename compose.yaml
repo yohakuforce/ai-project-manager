@@ -1,0 +1,62 @@
+# ============================================================
+# AI-Project-Manager docker compose
+# Windows (Docker Desktop for Windows / WSL2) 動作前提
+# 起動手順:
+#   1. .env.example を .env にコピーして値を設定
+#   2. docker compose up --build
+# ============================================================
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${DB_NAME:-ai_project_manager}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+    ports:
+      - "5433:5432"   # 5432 は Context-Hub と衝突しないよう 5433 に
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      target: development
+    ports:
+      - "8001:8001"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD}@db/${DB_NAME:-ai_project_manager}
+    volumes:
+      # Windows 注意: Docker Desktop の File sharing 設定でドライブを共有しておくこと
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # DB マイグレーション（起動時一度だけ実行）
+  migrate:
+    build:
+      context: .
+      target: development
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD}@db/${DB_NAME:-ai_project_manager}
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  pg_data:
+    driver: local

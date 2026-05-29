@@ -1,0 +1,27 @@
+# ============================================================
+# AI-Project-Manager 開発依存ライブラリ
+# ============================================================
+
+# --- テスト ---
+pytest==8.3.4
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+httpx==0.28.1        # FastAPI TestClient
+aiosqlite==0.20.0    # 統合テスト用 in-memory SQLite（JSONB は SQLite では汎用 JSON にディスパッチ）
+
+# --- 型チェック ---
+mypy==1.13.0
+types-python-dateutil==2.9.0.20241206
+
+# --- リント ---
+ruff==0.8.4
+
+# --- セキュリティ静的解析 ---
+bandit[toml]==1.8.0
+pip-audit==2.7.3
+
+# --- pre-commit ---
+pre-commit==4.0.1
+
+# --- 開発補助 ---
+ipython==8.30.0

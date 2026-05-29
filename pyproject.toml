@@ -1,0 +1,135 @@
+## ============================================================
+## AI-Project-Manager — ツール設定
+## ruff / mypy / bandit / pytest 共通設定
+## ============================================================
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+exclude = [
+    ".venv",
+    "alembic/versions",
+    "__pycache__",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes
+    "W",      # pycodestyle warnings
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "UP",     # pyupgrade
+    "SIM",    # flake8-simplify
+    "RUF",    # ruff-specific
+    "ASYNC",  # async best practices
+    "S",      # bandit-style security (subset)
+]
+ignore = [
+    "E501",   # line too long（formatter に任せる）
+    "B008",   # function call in default arg（FastAPI Depends で必須）
+    "S101",   # assert（test 中で使用）
+    "RUF001", # 全角文字許容（日本語コメント・ドキュメント）
+    "RUF002",
+    "RUF003",
+    # v0 既存コード由来の許容（次セッション cleanup タスク T-20260518-* で解消）
+    "B904",   # raise ... from err（既存 exception chain 未整備）
+    "UP042",  # StrEnum 推奨（既存 class Foo(str, Enum) のまま）
+    "SIM117", # nested with（テスト可読性で許容）
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S", "B011", "ASYNC240"]
+"alembic/env.py" = ["E402"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+combine-as-imports = true
+
+[tool.mypy]
+## v0 段階: ベースは緩め設定。新規モジュール（notifiers）のみ strict 適用。
+## v0 cleanup task で既存コード全体を段階的に strict 化する。
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_no_return = true
+show_error_codes = true
+namespace_packages = true
+explicit_package_bases = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+exclude = [
+    "^alembic/versions/",
+    "^tests/",
+    "^\\.venv/",
+]
+
+## 新規モジュール: strict 維持
+[[tool.mypy.overrides]]
+module = ["src.infrastructure.notifiers.*"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+warn_unused_ignores = true
+warn_unreachable = true
+
+## 外部ライブラリ: 型情報なし許容
+[[tool.mypy.overrides]]
+module = [
+    "apscheduler.*",
+    "slack_sdk.*",
+    "jose.*",
+    "bcrypt.*",
+]
+ignore_missing_imports = true
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv", "alembic/versions"]
+skips = [
+    "B101",  # assert（test 以外でも明示的に使う場合あり）
+    "B404",  # subprocess import（Claude Code adapter で必要）
+    "B603",  # subprocess without shell=True（むしろ推奨形）
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--cov=src",
+    "--cov-report=term-missing",
+    "--cov-report=xml",
+    "--cov-fail-under=80",
+    "-v",
+    "--strict-markers",
+    "--strict-config",
+]
+markers = [
+    "integration: 統合テスト（外部依存あり）",
+    "slow: 実行に時間のかかるテスト",
+]
+filterwarnings = [
+    "error::RuntimeWarning",
+    "ignore::DeprecationWarning:dateutil.*",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "src/__init__.py",
+    "src/*/__init__.py",
+]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]

@@ -1,0 +1,70 @@
+# Environment & secrets (NEVER commit these)
+.env
+.env.*
+!.env.example
+
+# API keys and credentials
+*.key
+*.pem
+*.p12
+secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+*.egg
+.venv/
+venv/
+ENV/
+env/
+
+# Test & coverage artifacts
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Database files (social PC only)
+*.db
+*.sqlite
+*.sqlite3
+pg_data/
+data/
+
+# Logs (social PC only)
+logs/
+*.log
+
+# Audio / transcripts (social PC only)
+data/meetings/
+data/audio/
+
+# Docker generated
+.docker/
+
+# Alembic
+# (keep migrations/ dir but not generated env.py from alembic init)
+
+# Temporary files
+tmp/
+temp/

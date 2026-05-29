@@ -47,6 +47,7 @@ from src.infrastructure.repositories.in_memory import (
 )
 
 CONTEXT_HUB_PROJECT_ID = "proj-001"
+MEETING_ID = "meeting-demo-001"  # stable id from Context-Hub/scripts/seed_sample.py
 BASE_URL = os.environ.get("CONTEXT_HUB_BASE_URL", "http://127.0.0.1:8000/api/v1")
 API_KEY = os.environ.get("CONTEXT_HUB_API_KEY", "dev-seed-key")
 SCAN_DATE = date(2026, 6, 4)  # past the seeded due dates (6/2, 6/3) -> delay alerts
@@ -101,9 +102,17 @@ async def main() -> None:
     )
     overview = OverviewService(project_repo, member_repo, alert_repo, report_repo, llm)
 
-    # 1. PLAN — pull real issues from live Context-Hub and convert to tasks.
-    _hr("1. PLAN（Context-Hub の実 Issue → Task）")
-    total_imported = 0
+    # 1a. PLAN (meeting) — 会議メモ → タスク自動生成. Context-Hub extracts tasks
+    # from the meeting transcript at ingestion (on-prem LLM) and AI-PM imports them.
+    _hr("1a. PLAN（Context-Hub の会議メモ → 自動タスク生成）")
+    meeting_res = await plan.extract_tasks_from_meeting(
+        project_id=project_id, meeting_id=MEETING_ID
+    )
+    print(f"  会議由来 tasks_added={meeting_res.tasks_added} ids={meeting_res.task_ids}")
+
+    # 1b. PLAN (issues) — pull real issues from live Context-Hub and convert to tasks.
+    _hr("1b. PLAN（Context-Hub の実 Issue → Task）")
+    total_imported = meeting_res.tasks_added
     for status in ("open", "in_progress"):
         res = await plan.import_tasks_from_issues(
             project_id=project_id, source="backlog", status_filter=status
@@ -111,7 +120,7 @@ async def main() -> None:
         total_imported += res.tasks_added
         print(f"  status={status}: tasks_added={res.tasks_added} ids={res.task_ids}")
     saved = await project_repo.find_by_id(project.project_id)
-    print(f"  → Project 内 Task 合計: {len(saved.tasks)} 件（live CH issues 由来）")
+    print(f"  → Project 内 Task 合計: {len(saved.tasks)} 件（会議 + live CH issues 由来）")
 
     # 2. ASSIGN — generate draft assignments and confirm them.
     _hr("2. ASSIGN（Task → Member 割当案 → 承認）")

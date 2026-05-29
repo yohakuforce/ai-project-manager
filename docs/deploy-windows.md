@@ -108,6 +108,34 @@ docker compose up --build
 
 ---
 
+## 会議→タスク自動生成（必須機能）
+
+会議メモを Context-Hub に登録すると、**取込時に1回だけ on-prem LLM がタスクを抽出して永続化**します
+（再読込でも結果が変わらない = 取りこぼし防止）。抽出は Context-Hub 側（社内PC・`LLM_PROVIDER`）で
+行われ、生トランスクリプトは外部 API に出ません。
+
+```powershell
+# 会議メモを登録（source=meeting なら自動でタスク抽出される）
+curl -X POST "http://127.0.0.1:8000/api/v1/documents" -H "X-Api-Key: <KEY>" -H "Content-Type: application/json" `
+  -d '{"projectId":"proj-001","sourceType":"meeting","externalId":"mtg-1","title":"定例","text":"...議事録..."}'
+
+# AI-PM が会議からタスク生成: plan.extract_tasks_from_meeting(projectId, 上で返った documentId)
+```
+
+`LLM_PROVIDER=claude-code`（または `ollama`）で実抽出。`mock` では抽出されない（決定性のCI用）。
+
+## Slack スクレイピング → Context-Hub 投入
+
+Slack は API ではなく**既存の web スクレイピング**で取得し、その結果を push します（Backlog/Redmine は API 取得済み）。
+
+```powershell
+curl -X POST "http://127.0.0.1:8000/api/v1/projects/proj-001/ingest/slack" -H "X-Api-Key: <KEY>" -H "Content-Type: application/json" `
+  -d '{"messages":[{"ts":"1716800000.001","text":"...","user":"U1","userName":"メンバーA","permalink":"https://..."}]}'
+# → {ingested, updated, skipped, documentIds}。ts をキーに冪等 upsert（再投入は updated）。
+```
+
+スクレイパ側は `messages[]`（`ts` 必須、`text` 必須）の JSON を組み立てて上記へ POST するだけ。
+
 ## 付録: Docker を使わない AI-PM 起動（ローカル Postgres）
 
 Docker を使わない場合は、ローカル Postgres を 5433 で立て、`DATABASE_URL` を実値にして:

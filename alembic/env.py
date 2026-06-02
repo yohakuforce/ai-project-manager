@@ -18,6 +18,7 @@ from src.infrastructure.db.models import (  # noqa: F401 - autogenerate のた�
     AssignmentModel,
     AuditLogModel,
     DailyReportModel,
+    LeaderGateModel,
     MemberModel,
     ProjectModel,
     TaskModel,

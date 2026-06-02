@@ -14,6 +14,8 @@ from sqlalchemy.orm import selectinload
 
 from src.domain.alert.aggregate import Alert, AlertId, AlertSeverity, AlertStatus
 from src.domain.alert.repository import AlertRepository
+from src.domain.gate.aggregate import GateStatus, LeaderGate, LeaderGateId
+from src.domain.gate.repository import LeaderGateRepository
 from src.domain.member.aggregate import Member
 from src.domain.member.repository import MemberRepository
 from src.domain.member.value_objects import MemberId
@@ -27,6 +29,7 @@ from src.infrastructure.db.models import (
     AlertModel,
     AssignmentModel,
     DailyReportModel,
+    LeaderGateModel,
     MemberModel,
     ProjectModel,
     TaskModel,
@@ -37,6 +40,8 @@ from src.infrastructure.repositories.mappers import (
     assignment_to_model,
     daily_report_from_model,
     daily_report_to_model,
+    leader_gate_from_model,
+    leader_gate_to_model,
     member_from_model,
     member_to_model,
     project_from_model,
@@ -307,3 +312,56 @@ class SqlAlchemyDailyReportRepository(DailyReportRepository):
                 existing.analyzed_at = new_orm.analyzed_at
             await session.commit()
         return report
+
+
+class SqlAlchemyLeaderGateRepository(LeaderGateRepository):
+    """LeaderGate（リーダー確認ゲート）の PostgreSQL 永続化。
+
+    確認が翌日になっても保持されるよう DB に永続化する。プロセス再起動を跨いで
+    PENDING ゲートが残り、リーダーは翌日でも解決できる。
+    """
+
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._session_factory = session_factory
+
+    async def find_by_id(self, gate_id: LeaderGateId) -> LeaderGate | None:
+        async with self._session_factory() as session:
+            stmt = select(LeaderGateModel).where(LeaderGateModel.id == str(gate_id))
+            model = (await session.execute(stmt)).scalar_one_or_none()
+            return leader_gate_from_model(model) if model else None
+
+    async def find_pending_by_project(self, project_id: str) -> list[LeaderGate]:
+        return await self._query(project_id, status_value=GateStatus.PENDING.value)
+
+    async def find_by_status(self, project_id: str, status: GateStatus) -> list[LeaderGate]:
+        return await self._query(project_id, status_value=status.value)
+
+    async def save(self, gate: LeaderGate) -> LeaderGate:
+        async with self._session_factory() as session:
+            gate_id = str(gate.gate_id)
+            existing = (
+                await session.execute(select(LeaderGateModel).where(LeaderGateModel.id == gate_id))
+            ).scalar_one_or_none()
+            new_orm = leader_gate_to_model(gate)
+            if existing is None:
+                session.add(new_orm)
+            else:
+                existing.project_id = new_orm.project_id
+                existing.gate_type = new_orm.gate_type
+                existing.gate_date = new_orm.gate_date
+                existing.status = new_orm.status
+                existing.context_json = new_orm.context_json
+                existing.decision = new_orm.decision
+                existing.resolved_by = new_orm.resolved_by
+                existing.resolved_at = new_orm.resolved_at
+            await session.commit()
+        return gate
+
+    async def _query(self, project_id: str, *, status_value: str) -> list[LeaderGate]:
+        async with self._session_factory() as session:
+            stmt = select(LeaderGateModel).where(
+                LeaderGateModel.project_id == project_id,
+                LeaderGateModel.status == status_value,
+            )
+            rows = (await session.execute(stmt)).scalars().all()
+            return [leader_gate_from_model(r) for r in rows]

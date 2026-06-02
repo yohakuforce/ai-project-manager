@@ -12,15 +12,16 @@ from dataclasses import dataclass, field
 from src.infrastructure.notifiers.protocol import (
     AlertNotification,
     DailyReportNotification,
+    MessageNotification,
     NotificationResult,
 )
 
 
 @dataclass
 class _Sent:
-    kind: str  # "daily_report" | "alert"
+    kind: str  # "daily_report" | "alert" | "message"
     channel: str
-    payload: DailyReportNotification | AlertNotification
+    payload: DailyReportNotification | AlertNotification | MessageNotification
 
 
 @dataclass
@@ -72,6 +73,26 @@ class InMemoryNotifier:
         return NotificationResult(
             success=True,
             channel=notification.recipient_channel,
+            message_id=f"mem-{uuid.uuid4()}",
+        )
+
+    async def send_message(self, notification: MessageNotification) -> NotificationResult:
+        if self.fail_on_send:
+            return NotificationResult(
+                success=False,
+                channel=notification.channel,
+                error="InMemoryNotifier configured to fail",
+            )
+        self.sent.append(
+            _Sent(
+                kind="message",
+                channel=notification.channel,
+                payload=notification,
+            )
+        )
+        return NotificationResult(
+            success=True,
+            channel=notification.channel,
             message_id=f"mem-{uuid.uuid4()}",
         )
 

@@ -60,6 +60,26 @@ class AlertNotification:
     target_member_name: str | None = None
 
 
+@dataclass(frozen=True)
+class MessageNotification:
+    """汎用メッセージ通知のペイロード。
+
+    日報以外のスタンドアップ・催促・総括・全体ステータス・リーダー確認ゲート等、
+    定型化されていない文面を任意のチャネル（リーダーチャネル or メンバー DM）へ
+    配信するために使う。
+
+    kind は配信先での仕分け・テスト検証用のタグ（例: 'standup' / 'reminder' /
+    'wrap_up' / 'status' / 'gate'）。action_url はリーダーが確認操作を行う
+    エンドポイント等への導線（あれば）。
+    """
+
+    channel: str
+    title: str
+    body: str
+    kind: str = "message"
+    action_url: str | None = None
+
+
 @runtime_checkable
 class Notifier(Protocol):
     """通知配信プロトコル。
@@ -79,6 +99,10 @@ class Notifier(Protocol):
 
     async def send_alert(self, notification: AlertNotification) -> NotificationResult:
         """アラートを PL/PM チャンネルへ通知する。"""
+        ...
+
+    async def send_message(self, notification: MessageNotification) -> NotificationResult:
+        """汎用メッセージ（スタンドアップ・催促・総括・ゲート等）を配信する。"""
         ...
 
     async def healthcheck(self) -> bool:

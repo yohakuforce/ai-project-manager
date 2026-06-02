@@ -37,6 +37,7 @@ from src.infrastructure.notifiers import (
     AlertNotification,
     DailyReportNotification,
     InMemoryNotifier,
+    MessageNotification,
     NotificationError,
     SlackNotifier,
     build_notifier,
@@ -168,6 +169,31 @@ class TestInMemoryNotifier:
 
         assert len(notifier.filter("daily_report")) == 1
         assert len(notifier.filter("alert")) == 2
+
+    async def test_send_message_success(self) -> None:
+        notifier = InMemoryNotifier()
+        result = await notifier.send_message(
+            MessageNotification(
+                channel="#leader",
+                title="スタンドアップ",
+                body="本日のフォーカス",
+                kind="standup",
+            )
+        )
+
+        assert result.success is True
+        assert result.channel == "#leader"
+        messages = notifier.filter("message")
+        assert len(messages) == 1
+        assert messages[0].payload.kind == "standup"
+
+    async def test_send_message_fails_when_configured(self) -> None:
+        notifier = InMemoryNotifier(fail_on_send=True)
+        result = await notifier.send_message(
+            MessageNotification(channel="#leader", title="t", body="b")
+        )
+        assert result.success is False
+        assert notifier.sent == []
 
 
 # ---------------------------------------------------------------------------

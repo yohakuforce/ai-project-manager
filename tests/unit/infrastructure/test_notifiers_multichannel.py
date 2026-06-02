@@ -36,6 +36,7 @@ from src.infrastructure.notifiers import (
     GoogleSheetsNotifier,
     InMemoryNotifier,
     LocalFileNotifier,
+    MessageNotification,
     NotificationError,
     SlackNotifier,
     build_notifier,
@@ -141,6 +142,28 @@ class TestLocalFileNotifier:
         assert line["type"] == "alert"
         assert line["project_name"] == "案件 X"
         assert line["severity"] == "high"
+
+    async def test_send_message_creates_jsonl(self, tmp_path: Path) -> None:
+        notifier = LocalFileNotifier(settings=_settings_local(tmp_path))
+        result = await notifier.send_message(
+            MessageNotification(
+                channel="#leader",
+                title="本日のスタンドアップ",
+                body="昨日の進捗と本日のフォーカス。",
+                kind="standup",
+                action_url="https://example.com/confirm",
+            )
+        )
+
+        assert result.success is True
+        assert result.channel == "local_file"
+
+        output_file = Path(result.message_id)
+        line = json.loads(output_file.read_text(encoding="utf-8").strip())
+        assert line["type"] == "message"
+        assert line["kind"] == "standup"
+        assert line["title"] == "本日のスタンドアップ"
+        assert line["action_url"] == "https://example.com/confirm"
 
     async def test_multiple_notifications_appended_as_separate_lines(
         self, tmp_path: Path

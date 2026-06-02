@@ -9,12 +9,14 @@ from src.infrastructure.repositories.factory import build_repositories
 from src.infrastructure.repositories.in_memory import (
     InMemoryAlertRepository,
     InMemoryDailyReportRepository,
+    InMemoryLeaderGateRepository,
     InMemoryMemberRepository,
     InMemoryProjectRepository,
 )
 from src.infrastructure.repositories.sqlalchemy import (
     SqlAlchemyAlertRepository,
     SqlAlchemyDailyReportRepository,
+    SqlAlchemyLeaderGateRepository,
     SqlAlchemyMemberRepository,
     SqlAlchemyProjectRepository,
 )
@@ -29,6 +31,7 @@ class TestBuildRepositories:
         assert isinstance(bundle.member, InMemoryMemberRepository)
         assert isinstance(bundle.alert, InMemoryAlertRepository)
         assert isinstance(bundle.report, InMemoryDailyReportRepository)
+        assert isinstance(bundle.gate, InMemoryLeaderGateRepository)
         assert bundle.engine is None
 
     def test_returns_sqlalchemy_when_use_database_true(self) -> None:
@@ -42,6 +45,8 @@ class TestBuildRepositories:
         assert isinstance(bundle.member, SqlAlchemyMemberRepository)
         assert isinstance(bundle.alert, SqlAlchemyAlertRepository)
         assert isinstance(bundle.report, SqlAlchemyDailyReportRepository)
+        # gate も use_database=True では DB 永続化（確認が翌日になっても保持）
+        assert isinstance(bundle.gate, SqlAlchemyLeaderGateRepository)
         assert bundle.engine is not None
 
 

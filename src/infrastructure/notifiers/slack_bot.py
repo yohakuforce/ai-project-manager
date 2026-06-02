@@ -28,6 +28,7 @@ from src.domain.alert.aggregate import AlertSeverity
 from src.infrastructure.notifiers.protocol import (
     AlertNotification,
     DailyReportNotification,
+    MessageNotification,
     NotificationError,
     NotificationResult,
 )
@@ -71,6 +72,14 @@ class SlackNotifier:
         text, blocks = self._build_alert_message(notification)
         return await self._post_with_retry(
             channel=notification.recipient_channel,
+            text=text,
+            blocks=blocks,
+        )
+
+    async def send_message(self, notification: MessageNotification) -> NotificationResult:
+        text, blocks = self._build_generic_message(notification)
+        return await self._post_with_retry(
+            channel=notification.channel,
             text=text,
             blocks=blocks,
         )
@@ -206,6 +215,41 @@ class SlackNotifier:
                             "type": "button",
                             "text": {"type": "plain_text", "text": "回答する"},
                             "url": notification.submit_url,
+                            "style": "primary",
+                        }
+                    ],
+                }
+            )
+
+        return text, blocks
+
+    @staticmethod
+    def _build_generic_message(
+        notification: MessageNotification,
+    ) -> tuple[str, list[dict[str, Any]]]:
+        """汎用メッセージ（スタンドアップ・催促・総括・ゲート等）の Slack 文面を組む。"""
+        text = f"{notification.title}\n{notification.body}"
+
+        blocks: list[dict[str, Any]] = [
+            {
+                "type": "header",
+                "text": {"type": "plain_text", "text": notification.title[:150]},
+            },
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": notification.body},
+            },
+        ]
+
+        if notification.action_url:
+            blocks.append(
+                {
+                    "type": "actions",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "text": {"type": "plain_text", "text": "確認する"},
+                            "url": notification.action_url,
                             "style": "primary",
                         }
                     ],

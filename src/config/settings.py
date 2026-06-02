@@ -60,8 +60,21 @@ class Settings(BaseSettings):
     google_sheet_id: str = Field(default="")
 
     # --- スケジューラ ---
-    daily_report_delivery_hour: int = Field(default=8)
-    daily_overview_generation_hour: int = Field(default=7)
+    # 既定値はこちらで設定。GUI（/settings）でユーザーが調整可能。
+    # 実行順序（standup→report_generate→report_deliver→report_reminder→wrap_up→alert_scan）は
+    # 時刻設定に関わらず常に固定（schedule_plan.py の CANONICAL_STEP_ORDER）。
+    # final_analysis はリーダー確認ゲート駆動のため cron には載せない。
+    scheduler_enabled: bool = Field(default=True)
+    scheduler_timezone: str = Field(default="Asia/Tokyo")
+    # 各フェーズの時刻（時・分）。
+    standup_hour: int = Field(default=9)
+    standup_minute: int = Field(default=0)
+    report_hour: int = Field(default=14)
+    report_minute: int = Field(default=0)
+    reminder_hour: int = Field(default=17)
+    reminder_minute: int = Field(default=0)
+    wrap_up_hour: int = Field(default=17)
+    wrap_up_minute: int = Field(default=30)
     alert_scan_interval_minutes: int = Field(default=30)
 
     # --- セキュリティ ---

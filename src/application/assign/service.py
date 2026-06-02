@@ -51,6 +51,16 @@ class AssignmentDecisionResult:
     new_status: str
 
 
+@dataclass(frozen=True)
+class ReassignDraftResult:
+    """propose_reassignments の戻り値。"""
+
+    project_id: str
+    reassignments_created: int
+    assignment_ids: list[str]
+    skipped_task_ids: list[str]  # 現担当が良い/代替候補なし等でスキップ
+
+
 class AssignService:
     """
     Task → Member 割当案生成 Application Service。
@@ -141,6 +151,79 @@ class AssignService:
         return AssignDraftResult(
             project_id=project_id,
             assignments_created=len(created_ids),
+            assignment_ids=created_ids,
+            skipped_task_ids=skipped_ids,
+        )
+
+    async def propose_reassignments(
+        self,
+        project_id: str,
+        problem_task_ids: list[str],
+        target_date: date | None = None,
+    ) -> ReassignDraftResult:
+        """問題タスク（過負荷者保有・期日リスク等）に対し、現担当とは別メンバーへの
+        DRAFT 入替案を生成する。
+
+        スタンドアップ（9時）がアサイン妥当性を確認し、問題を検知したタスク ID 群を渡す。
+        不変条件どおり提案は DRAFT に留め、最終判断はリーダーが行う。
+
+        スキップ条件:
+          - 現状 CONFIRMED な割当が無いタスク（=未割当。入替ではなく新規割当の対象）
+          - 既に DRAFT 入替案があるタスク（二重提案を避ける）
+          - 現担当以外に適切な候補がいないタスク
+        """
+        check_date = target_date or date.today()
+
+        project = await self._project_repo.find_by_id(ProjectId.from_str(project_id))
+        if project is None:
+            raise ValueError(f"Project が見つかりません: {project_id}")
+
+        members = await self._member_repo.find_all()
+        problem_set = set(problem_task_ids)
+        current_by_task = {str(a.task_id): a for a in project.confirmed_assignments()}
+        draft_task_ids = {str(a.task_id) for a in project.draft_assignments()}
+
+        created_ids: list[str] = []
+        skipped_ids: list[str] = []
+
+        for task in project.active_tasks():
+            task_id = str(task.task_id)
+            if task_id not in problem_set:
+                continue
+            current = current_by_task.get(task_id)
+            if current is None or task_id in draft_task_ids:
+                skipped_ids.append(task_id)
+                continue
+
+            candidate = self._select_best_member(
+                task, members, check_date, exclude_member_ids={current.member_id}
+            )
+            if candidate is None or str(candidate.member_id) == current.member_id:
+                skipped_ids.append(task_id)
+                continue
+
+            rationale = await self._generate_rationale(task, candidate, check_date)
+            assignment = Assignment(
+                assignment_id=AssignmentId.generate(),
+                task_id=task.task_id,
+                member_id=str(candidate.member_id),
+                status=AssignmentStatus.DRAFT,
+                ai_rationale=f"[入替案] {rationale}",
+            )
+            project.add_assignment(assignment)
+            created_ids.append(str(assignment.assignment_id))
+            await self._record_audit(
+                action=AuditAction.ASSIGNMENT_CREATED,
+                actor="system",
+                project_id=project_id,
+                data_ref=str(assignment.assignment_id),
+            )
+
+        await self._project_repo.save(project)
+
+        return ReassignDraftResult(
+            project_id=project_id,
+            reassignments_created=len(created_ids),
             assignment_ids=created_ids,
             skipped_task_ids=skipped_ids,
         )
@@ -252,6 +335,7 @@ class AssignService:
         task: Task,
         members: list[Member],
         check_date: date,
+        exclude_member_ids: set[str] | frozenset[str] = frozenset(),
     ) -> Member | None:
         """
         タスクに最も適したメンバーを選択する（シンプルなスコアリング）。
@@ -261,11 +345,16 @@ class AssignService:
           - 期限内完了率高い（>= 0.8）: +2
           - 期限内完了率中程度（>= 0.6）: +1
           - スキル登録あり: +1
+
+        ``exclude_member_ids`` に含まれるメンバーは候補から除外する
+        （入替案生成で現担当を除くために使う）。
         """
         best_member: Member | None = None
         best_score = -1
 
         for member in members:
+            if str(member.member_id) in exclude_member_ids:
+                continue
             available_hours = member.available_hours_on(check_date)
             if available_hours <= 0:
                 continue  # その日稼働なし

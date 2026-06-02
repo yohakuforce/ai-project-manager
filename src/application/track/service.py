@@ -36,6 +36,7 @@ from src.domain.reporting.value_objects import (
 from src.infrastructure.llm.adapter import LLMAdapter
 from src.infrastructure.notifiers.protocol import (
     DailyReportNotification,
+    MessageNotification,
     NotificationError,
     Notifier,
 )
@@ -62,6 +63,17 @@ class DeliverReportsResult:
     reports_delivered: int
     notifications_sent: int = 0
     notifications_failed: int = 0
+
+
+@dataclass(frozen=True)
+class RemindResult:
+    """remind_unsubmitted の戻り値。"""
+
+    project_id: str
+    report_date: str
+    unsubmitted_member_ids: list[str]
+    member_reminders_sent: int
+    leader_notified: bool
 
 
 @dataclass(frozen=True)
@@ -103,6 +115,7 @@ class TrackService:
         llm_adapter: LLMAdapter,
         notifier: Notifier | None = None,
         default_channel: str = "",
+        leader_channel: str = "",
         audit_repository: AuditLogRepository | None = None,
     ) -> None:
         self._project_repo = project_repository
@@ -111,6 +124,8 @@ class TrackService:
         self._llm = llm_adapter
         self._notifier = notifier
         self._default_channel = default_channel
+        # リーダー（PL/PM）向け共有チャネル。未指定なら default_channel を流用。
+        self._leader_channel = leader_channel or default_channel
         self._audit_repo = audit_repository
 
     async def generate_daily_report_templates(
@@ -268,6 +283,104 @@ class TrackService:
             notifications_sent=notifications_sent,
             notifications_failed=notifications_failed,
         )
+
+    async def remind_unsubmitted(
+        self,
+        project_id: str,
+        report_date: date | None = None,
+    ) -> RemindResult:
+        """日報未提出者に催促する（17時想定）。
+
+        - 未提出（PENDING / DELIVERED）の各メンバー本人へ DM 催促を送る。
+        - リーダー（共有チャネル）へ未提出者一覧を提示する。
+        どちらも notifier が無い場合は送信せず件数 0 で返す（落とさない）。
+        """
+        target_date = report_date or date.today()
+        reports = await self._report_repo.find_by_project_and_date(project_id, target_date)
+        unsubmitted = [
+            r for r in reports if r.status in (ReportStatus.PENDING, ReportStatus.DELIVERED)
+        ]
+
+        unsubmitted_member_ids = [r.member_id for r in unsubmitted]
+        if not unsubmitted:
+            logger.info("未提出の日報はありません: project=%s date=%s", project_id, target_date)
+            return RemindResult(
+                project_id=project_id,
+                report_date=target_date.isoformat(),
+                unsubmitted_member_ids=[],
+                member_reminders_sent=0,
+                leader_notified=False,
+            )
+
+        if self._notifier is None:
+            return RemindResult(
+                project_id=project_id,
+                report_date=target_date.isoformat(),
+                unsubmitted_member_ids=unsubmitted_member_ids,
+                member_reminders_sent=0,
+                leader_notified=False,
+            )
+
+        # --- 本人への DM 催促 ---
+        member_reminders_sent = 0
+        unsubmitted_names: list[str] = []
+        for report in unsubmitted:
+            member = await self._find_member(report.member_id)
+            member_name = member.name if member is not None else report.member_id
+            unsubmitted_names.append(member_name)
+
+            channel = self._resolve_member_channel(member) if member is not None else ""
+            if not channel:
+                continue
+            payload = MessageNotification(
+                channel=channel,
+                title=f"日報の提出をお願いします（{target_date.isoformat()}）",
+                body=(
+                    f"{member_name} さん、本日（{target_date.isoformat()}）の日報が未提出です。"
+                    "お手すきの際にご提出ください。"
+                ),
+                kind="reminder",
+            )
+            if await self._safe_send_message(payload):
+                member_reminders_sent += 1
+
+        # --- リーダーへ未提出者一覧 ---
+        leader_notified = False
+        if self._leader_channel:
+            name_lines = "\n".join(f"・{name}" for name in unsubmitted_names)
+            payload = MessageNotification(
+                channel=self._leader_channel,
+                title=f"日報未提出者（{target_date.isoformat()}）{len(unsubmitted_names)}名",
+                body=f"以下のメンバーが未提出です。\n{name_lines}",
+                kind="reminder",
+            )
+            leader_notified = await self._safe_send_message(payload)
+
+        return RemindResult(
+            project_id=project_id,
+            report_date=target_date.isoformat(),
+            unsubmitted_member_ids=unsubmitted_member_ids,
+            member_reminders_sent=member_reminders_sent,
+            leader_notified=leader_notified,
+        )
+
+    async def _find_member(self, member_id: str):
+        """member_id 文字列から Member を解決する。不正・不在なら None。"""
+        try:
+            return await self._member_repo.find_by_id(MemberId.from_str(member_id))
+        except (ValueError, AttributeError):
+            return None
+
+    async def _safe_send_message(self, payload: MessageNotification) -> bool:
+        """send_message を例外安全に呼ぶ。成功なら True。"""
+        if self._notifier is None:
+            return False
+        try:
+            result = await self._notifier.send_message(payload)
+        except NotificationError as exc:
+            logger.error("メッセージ通知に失敗しました: channel=%s error=%s", payload.channel, exc)
+            return False
+        return bool(result.success)
 
     async def _record_audit(
         self,

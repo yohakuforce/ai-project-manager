@@ -20,6 +20,13 @@ from src.domain.alert.aggregate import (
     Evidence,
     EvidenceType,
 )
+from src.domain.gate.aggregate import (
+    GateDecision,
+    GateStatus,
+    GateType,
+    LeaderGate,
+    LeaderGateId,
+)
 from src.domain.member.aggregate import Member
 from src.domain.member.value_objects import (
     Availability,
@@ -62,6 +69,7 @@ from src.infrastructure.db.models import (
     AlertModel,
     AssignmentModel,
     DailyReportModel,
+    LeaderGateModel,
     MemberModel,
     ProjectModel,
     TaskModel,
@@ -449,4 +457,39 @@ def daily_report_from_model(model: DailyReportModel) -> DailyReport:
         delivered_at=model.delivered_at,
         submitted_at=model.submitted_at,
         analyzed_at=model.analyzed_at,
+    )
+
+
+# ============================================================
+# LeaderGate
+# ============================================================
+
+
+def leader_gate_to_model(gate: LeaderGate) -> LeaderGateModel:
+    return LeaderGateModel(
+        id=str(gate.gate_id),
+        project_id=gate.project_id,
+        gate_type=gate.gate_type.value,
+        gate_date=gate.gate_date,
+        status=gate.status.value,
+        context_json=gate.context,
+        decision=gate.decision.value if gate.decision else None,
+        resolved_by=gate.resolved_by,
+        created_at=gate.created_at,
+        resolved_at=gate.resolved_at,
+    )
+
+
+def leader_gate_from_model(model: LeaderGateModel) -> LeaderGate:
+    return LeaderGate(
+        gate_id=LeaderGateId(value=uuid.UUID(model.id)),
+        project_id=model.project_id,
+        gate_type=GateType(model.gate_type),
+        gate_date=model.gate_date,
+        status=GateStatus(model.status),
+        context=dict(model.context_json or {}),
+        decision=GateDecision(model.decision) if model.decision else None,
+        resolved_by=model.resolved_by,
+        created_at=model.created_at,
+        resolved_at=model.resolved_at,
     )

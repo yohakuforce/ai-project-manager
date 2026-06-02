@@ -142,8 +142,11 @@ class TestGetSettingsPage:
             "google_service_account_json",
             "google_sheet_id",
             "notification_local_dir",
-            "daily_report_delivery_hour",
-            "daily_overview_generation_hour",
+            "standup_hour",
+            "report_hour",
+            "reminder_hour",
+            "wrap_up_hour",
+            "wrap_up_minute",
             "alert_scan_interval_minutes",
         ]
         for field in expected_fields:
@@ -153,7 +156,10 @@ class TestGetSettingsPage:
         """シークレット値はフル値ではなく ••••... でマスクされること。"""
         env_file = tmp_path / ".env"
         env_file.write_text("SLACK_BOT_TOKEN=xoxb-secret-full-token\n", encoding="utf-8")
-        with patch.dict(os.environ, {"SETTINGS_UI_ENV_PATH": str(env_file), "SLACK_BOT_TOKEN": "xoxb-secret-full-token"}):
+        with patch.dict(
+            os.environ,
+            {"SETTINGS_UI_ENV_PATH": str(env_file), "SLACK_BOT_TOKEN": "xoxb-secret-full-token"},
+        ):
             get_settings.cache_clear()
             response = client.get("/settings")
         get_settings.cache_clear()
@@ -182,8 +188,14 @@ class TestPostSettings:
             "google_service_account_json": "",
             "google_sheet_id": "",
             "notification_local_dir": "/tmp/notifications",
-            "daily_report_delivery_hour": "9",
-            "daily_overview_generation_hour": "7",
+            "standup_hour": "9",
+            "standup_minute": "0",
+            "report_hour": "14",
+            "report_minute": "0",
+            "reminder_hour": "17",
+            "reminder_minute": "0",
+            "wrap_up_hour": "17",
+            "wrap_up_minute": "30",
             "alert_scan_interval_minutes": "15",
         }
 
@@ -275,7 +287,7 @@ class TestPostSettings:
         assert "carrier_pigeon" in response.text
 
     def test_invalid_hour_returns_422(self, client: TestClient, tmp_path: Path) -> None:
-        form = {**self._base_form(), "daily_report_delivery_hour": "25"}
+        form = {**self._base_form(), "report_hour": "25"}
         with patch.dict(os.environ, {"SETTINGS_UI_ENV_PATH": str(tmp_path / ".env")}):
             get_settings.cache_clear()
             response = client.post("/settings", data=form)
@@ -339,9 +351,7 @@ class TestContextHubTest:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(
-            side_effect=_httpx.HTTPStatusError(
-                "401", request=mock_request, response=mock_resp
-            )
+            side_effect=_httpx.HTTPStatusError("401", request=mock_request, response=mock_resp)
         )
 
         with patch("src.api.routes.settings_ui.httpx.AsyncClient", return_value=mock_client):

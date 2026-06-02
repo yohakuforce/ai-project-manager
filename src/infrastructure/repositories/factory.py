@@ -14,18 +14,21 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from src.config.settings import Settings
 from src.domain.alert.repository import AlertRepository
+from src.domain.gate.repository import LeaderGateRepository
 from src.domain.member.repository import MemberRepository
 from src.domain.project.repository import ProjectRepository
 from src.domain.reporting.repository import DailyReportRepository
 from src.infrastructure.repositories.in_memory import (
     InMemoryAlertRepository,
     InMemoryDailyReportRepository,
+    InMemoryLeaderGateRepository,
     InMemoryMemberRepository,
     InMemoryProjectRepository,
 )
 from src.infrastructure.repositories.sqlalchemy import (
     SqlAlchemyAlertRepository,
     SqlAlchemyDailyReportRepository,
+    SqlAlchemyLeaderGateRepository,
     SqlAlchemyMemberRepository,
     SqlAlchemyProjectRepository,
 )
@@ -35,12 +38,17 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class RepositoryBundle:
-    """4 集約のリポジトリ束。DI コンテナから取り出して各 Service に注入する。"""
+    """集約のリポジトリ束。DI コンテナから取り出して各 Service に注入する。
+
+    gate（リーダー確認ゲート）も use_database に追従する。確認が翌日になっても
+    保持されるよう、use_database=True では PostgreSQL に永続化する。
+    """
 
     project: ProjectRepository
     member: MemberRepository
     alert: AlertRepository
     report: DailyReportRepository
+    gate: LeaderGateRepository
     # SQLAlchemy 実装時はライフサイクル管理用に engine も保持
     engine: Any | None = None
 
@@ -62,6 +70,7 @@ def build_repositories(settings: Settings) -> RepositoryBundle:
             member=InMemoryMemberRepository(),
             alert=InMemoryAlertRepository(),
             report=InMemoryDailyReportRepository(),
+            gate=InMemoryLeaderGateRepository(),
         )
 
     engine = create_async_engine(
@@ -75,5 +84,6 @@ def build_repositories(settings: Settings) -> RepositoryBundle:
         member=SqlAlchemyMemberRepository(session_factory),
         alert=SqlAlchemyAlertRepository(session_factory),
         report=SqlAlchemyDailyReportRepository(session_factory),
+        gate=SqlAlchemyLeaderGateRepository(session_factory),
         engine=engine,
     )

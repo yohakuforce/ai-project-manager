@@ -9,6 +9,7 @@ Slack トークンや Google サービスアカウントが使えない環境で
 ファイル構成:
   - ``<dir>/daily_reports.jsonl``: 日報配信通知（1 行 = 1 通知）
   - ``<dir>/alerts.jsonl``       : アラート通知（1 行 = 1 通知）
+  - ``<dir>/messages.jsonl``     : 汎用メッセージ通知（1 行 = 1 通知）
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from src.config.settings import Settings
 from src.infrastructure.notifiers.protocol import (
     AlertNotification,
     DailyReportNotification,
+    MessageNotification,
     NotificationError,
     NotificationResult,
 )
@@ -31,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 _DAILY_REPORT_FILE = "daily_reports.jsonl"
 _ALERT_FILE = "alerts.jsonl"
+_MESSAGE_FILE = "messages.jsonl"
 
 
 @dataclass
@@ -131,6 +134,38 @@ class LocalFileNotifier:
             )
         except NotificationError as exc:
             logger.error("LocalFileNotifier: アラート通知の書き込みに失敗: %s", exc)
+            return NotificationResult(
+                success=False,
+                channel="local_file",
+                error=str(exc),
+            )
+
+    async def send_message(self, notification: MessageNotification) -> NotificationResult:
+        """汎用メッセージ通知を JSONL ファイルに追記する。"""
+        payload = {
+            "type": "message",
+            "sent_at": datetime.now(UTC).isoformat(),
+            "kind": notification.kind,
+            "channel": notification.channel,
+            "title": notification.title,
+            "body": notification.body,
+            "action_url": notification.action_url,
+        }
+        try:
+            filepath = self._append_line(_MESSAGE_FILE, payload)
+            logger.info(
+                "LocalFileNotifier: メッセージ通知を書き込みました kind=%s channel=%s file=%s",
+                notification.kind,
+                notification.channel,
+                filepath,
+            )
+            return NotificationResult(
+                success=True,
+                channel="local_file",
+                message_id=filepath,
+            )
+        except NotificationError as exc:
+            logger.error("LocalFileNotifier: メッセージ通知の書き込みに失敗: %s", exc)
             return NotificationResult(
                 success=False,
                 channel="local_file",

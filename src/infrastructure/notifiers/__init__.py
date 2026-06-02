@@ -16,6 +16,7 @@ from src.infrastructure.notifiers.local_file import LocalFileNotifier
 from src.infrastructure.notifiers.protocol import (
     AlertNotification,
     DailyReportNotification,
+    MessageNotification,
     NotificationError,
     NotificationResult,
     Notifier,
@@ -28,6 +29,7 @@ __all__ = [
     "GoogleSheetsNotifier",
     "InMemoryNotifier",
     "LocalFileNotifier",
+    "MessageNotification",
     "NotificationError",
     "NotificationResult",
     "Notifier",

@@ -192,3 +192,25 @@ class AuditLogModel(Base):
     llm_model: Mapped[str | None] = mapped_column(String(100))
     token_usage_json: Mapped[dict | None] = mapped_column(JSONType)
     input_hash: Mapped[str | None] = mapped_column(String(64))  # SHA-256
+
+
+# ============================================================
+# Leader Gate Context（リーダー確認ゲート）
+# ============================================================
+
+
+class LeaderGateModel(Base):
+    __tablename__ = "leader_gates"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    gate_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    gate_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending", index=True)
+    context_json: Mapped[dict] = mapped_column(JSONType, nullable=False, default=dict)
+    decision: Mapped[str | None] = mapped_column(String(50))
+    resolved_by: Mapped[str | None] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

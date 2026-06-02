@@ -26,6 +26,7 @@ from src.config.settings import Settings
 from src.infrastructure.notifiers.protocol import (
     AlertNotification,
     DailyReportNotification,
+    MessageNotification,
     NotificationError,
     NotificationResult,
 )
@@ -34,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 _DAILY_REPORT_SHEET = "daily_reports"
 _ALERT_SHEET = "alerts"
+_MESSAGE_SHEET = "messages"
 
 _DAILY_REPORT_HEADERS = [
     "sent_at",
@@ -55,6 +57,15 @@ _ALERT_HEADERS = [
     "category",
     "message",
     "detected_at",
+]
+
+_MESSAGE_HEADERS = [
+    "sent_at",
+    "kind",
+    "channel",
+    "title",
+    "body",
+    "action_url",
 ]
 
 
@@ -98,9 +109,7 @@ class GoogleSheetsNotifier:
         import os
 
         if not os.path.exists(creds_path):
-            raise NotificationError(
-                f"サービスアカウント JSON が見つかりません: {creds_path}"
-            )
+            raise NotificationError(f"サービスアカウント JSON が見つかりません: {creds_path}")
 
         try:
             client = gspread.service_account(filename=creds_path)
@@ -114,9 +123,7 @@ class GoogleSheetsNotifier:
     def _get_or_create_sheet(self, client, sheet_name: str, headers: list[str]):
         """スプレッドシートからシートを取得し、存在しなければ作成してヘッダ行を追加する。"""
         if not self.settings.google_sheet_id:
-            raise NotificationError(
-                "GOOGLE_SHEET_ID が未設定です。.env に設定してください。"
-            )
+            raise NotificationError("GOOGLE_SHEET_ID が未設定です。.env に設定してください。")
         try:
             spreadsheet = client.open_by_key(self.settings.google_sheet_id)
         except Exception as exc:
@@ -209,6 +216,47 @@ class GoogleSheetsNotifier:
             )
         except NotificationError as exc:
             logger.error("GoogleSheetsNotifier: アラート通知の書き込みに失敗: %s", exc)
+            return NotificationResult(
+                success=False,
+                channel="google_sheets",
+                error=str(exc),
+            )
+        except Exception as exc:
+            logger.error("GoogleSheetsNotifier: 予期せぬエラー: %s", exc)
+            return NotificationResult(
+                success=False,
+                channel="google_sheets",
+                error=f"unexpected: {exc!r}",
+            )
+
+    async def send_message(self, notification: MessageNotification) -> NotificationResult:
+        """汎用メッセージ通知を Google Sheets に追記する。"""
+        try:
+            client = self._get_client()
+            worksheet = self._get_or_create_sheet(client, _MESSAGE_SHEET, _MESSAGE_HEADERS)
+            row = [
+                datetime.now(UTC).isoformat(),
+                notification.kind,
+                notification.channel,
+                notification.title,
+                notification.body,
+                notification.action_url or "",
+            ]
+            result = worksheet.append_row(row)
+            row_ref = str(result.get("updates", {}).get("updatedRange", "unknown"))
+            logger.info(
+                "GoogleSheetsNotifier: メッセージ通知を追記しました kind=%s channel=%s range=%s",
+                notification.kind,
+                notification.channel,
+                row_ref,
+            )
+            return NotificationResult(
+                success=True,
+                channel="google_sheets",
+                message_id=row_ref,
+            )
+        except NotificationError as exc:
+            logger.error("GoogleSheetsNotifier: メッセージ通知の書き込みに失敗: %s", exc)
             return NotificationResult(
                 success=False,
                 channel="google_sheets",

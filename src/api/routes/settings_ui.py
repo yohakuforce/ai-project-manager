@@ -24,6 +24,7 @@ import httpx
 from fastapi import APIRouter, Form, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from src.application.scheduler.schedule_plan import ScheduleConfig, validate_schedule
 from src.config.settings import Settings, get_settings
 from src.infrastructure.notifiers.factory import build_notifier
 
@@ -57,10 +58,25 @@ _KNOWN_KEYS: dict[str, str] = {
     "GOOGLE_SERVICE_ACCOUNT_JSON": "google_service_account_json",
     "GOOGLE_SHEET_ID": "google_sheet_id",
     "NOTIFICATION_LOCAL_DIR": "notification_local_dir",
-    "DAILY_REPORT_DELIVERY_HOUR": "daily_report_delivery_hour",
-    "DAILY_OVERVIEW_GENERATION_HOUR": "daily_overview_generation_hour",
+    "STANDUP_HOUR": "standup_hour",
+    "STANDUP_MINUTE": "standup_minute",
+    "REPORT_HOUR": "report_hour",
+    "REPORT_MINUTE": "report_minute",
+    "REMINDER_HOUR": "reminder_hour",
+    "REMINDER_MINUTE": "reminder_minute",
+    "WRAP_UP_HOUR": "wrap_up_hour",
+    "WRAP_UP_MINUTE": "wrap_up_minute",
     "ALERT_SCAN_INTERVAL_MINUTES": "alert_scan_interval_minutes",
+    "SCHEDULER_ENABLED": "scheduler_enabled",
 }
+
+# スケジュール各フェーズ: (フィールド名, 日本語ラベル, 既定 hour, 既定 minute)
+_SCHEDULE_PHASES: tuple[tuple[str, str, int, int], ...] = (
+    ("standup", "スタンドアップ", 9, 0),
+    ("report", "日報生成→配信", 14, 0),
+    ("reminder", "日報未提出の催促", 17, 0),
+    ("wrap_up", "当日総括＋確認ゲート", 17, 30),
+)
 
 # ---- ヘルパー: .env 操作 -------------------------------------------------
 
@@ -132,7 +148,9 @@ def _resolve_env_path(override: str | None = None) -> Path:
 def _validate_channel(channel: str) -> str | None:
     """有効なチャンネル名か検証。不正なら理由文字列を返す。"""
     if channel not in VALID_CHANNELS:
-        return f"無効な notification_channel: '{channel}'. 選択肢: {', '.join(sorted(VALID_CHANNELS))}"
+        return (
+            f"無効な notification_channel: '{channel}'. 選択肢: {', '.join(sorted(VALID_CHANNELS))}"
+        )
     return None
 
 
@@ -144,6 +162,17 @@ def _validate_hour(value: str, label: str) -> str | None:
         return f"{label} は整数で指定してください。"
     if not (0 <= hour <= 23):
         return f"{label} は 0〜23 の範囲で指定してください。"
+    return None
+
+
+def _validate_minute(value: str, label: str) -> str | None:
+    """0〜59 の整数か検証。不正なら理由文字列を返す。"""
+    try:
+        minute = int(value)
+    except ValueError:
+        return f"{label} は整数で指定してください。"
+    if not (0 <= minute <= 59):
+        return f"{label} は 0〜59 の範囲で指定してください。"
     return None
 
 
@@ -262,17 +291,38 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 
   <fieldset>
     <legend>スケジュール</legend>
-    <label for="daily_report_delivery_hour">daily_report_delivery_hour (0〜23)</label>
-    <input type="number" id="daily_report_delivery_hour" name="daily_report_delivery_hour"
-      min="0" max="23" value="{daily_report_delivery_hour}">
+    <p class="hint">各フェーズの時刻（時・分）はここで自由に調整できます。<b>処理の順序
+    （スタンドアップ → 日報生成 → 日報配信 → 催促 → 当日総括 → アラート）は時刻設定に関わらず常に固定</b>で、
+    入れ替わりません。複数フェーズを同じ時刻にした場合も、レースを避けて1つのジョブにまとめ正しい順序で
+    逐次実行します。<br>
+    ※ リーダー確認後の「全体ステータス分析（final_analysis）」は時刻ではなくリーダーの確認操作で発火します。</p>
 
-    <label for="daily_overview_generation_hour">daily_overview_generation_hour (0〜23)</label>
-    <input type="number" id="daily_overview_generation_hour" name="daily_overview_generation_hour"
-      min="0" max="23" value="{daily_overview_generation_hour}">
+    <label for="scheduler_enabled">scheduler_enabled（自動スケジューラ）</label>
+    <select id="scheduler_enabled" name="scheduler_enabled">
+      <option value="true" {sched_on}>有効（設定時刻に自動実行）</option>
+      <option value="false" {sched_off}>無効（手動 API 実行のみ）</option>
+    </select>
 
-    <label for="alert_scan_interval_minutes">alert_scan_interval_minutes (分)</label>
+    <label for="standup_hour">スタンドアップ（時 : 分）</label>
+    <input type="number" id="standup_hour" name="standup_hour" min="0" max="23" value="{standup_hour}">
+    <input type="number" id="standup_minute" name="standup_minute" min="0" max="59" value="{standup_minute}">
+
+    <label for="report_hour">日報生成→配信（時 : 分）</label>
+    <input type="number" id="report_hour" name="report_hour" min="0" max="23" value="{report_hour}">
+    <input type="number" id="report_minute" name="report_minute" min="0" max="59" value="{report_minute}">
+
+    <label for="reminder_hour">日報未提出の催促（時 : 分）</label>
+    <input type="number" id="reminder_hour" name="reminder_hour" min="0" max="23" value="{reminder_hour}">
+    <input type="number" id="reminder_minute" name="reminder_minute" min="0" max="59" value="{reminder_minute}">
+
+    <label for="wrap_up_hour">当日総括＋確認ゲート（時 : 分）</label>
+    <input type="number" id="wrap_up_hour" name="wrap_up_hour" min="0" max="23" value="{wrap_up_hour}">
+    <input type="number" id="wrap_up_minute" name="wrap_up_minute" min="0" max="59" value="{wrap_up_minute}">
+
+    <label for="alert_scan_interval_minutes">alert_scan_interval_minutes（アラートスキャン間隔・1〜1440分）</label>
     <input type="number" id="alert_scan_interval_minutes" name="alert_scan_interval_minutes"
       min="1" max="1440" value="{alert_scan_interval_minutes}">
+    <p class="hint">間隔を短くしても多重起動・滞留しないよう制御済み（同時実行は1つに集約）。</p>
   </fieldset>
 
   <div class="actions">
@@ -334,9 +384,17 @@ def _render_page(settings: Settings, banner: str = "") -> str:
         google_service_account_json_masked=_mask_secret(settings.google_service_account_json),
         google_sheet_id=settings.google_sheet_id,
         notification_local_dir=settings.notification_local_dir,
-        daily_report_delivery_hour=settings.daily_report_delivery_hour,
-        daily_overview_generation_hour=settings.daily_overview_generation_hour,
+        standup_hour=settings.standup_hour,
+        standup_minute=settings.standup_minute,
+        report_hour=settings.report_hour,
+        report_minute=settings.report_minute,
+        reminder_hour=settings.reminder_hour,
+        reminder_minute=settings.reminder_minute,
+        wrap_up_hour=settings.wrap_up_hour,
+        wrap_up_minute=settings.wrap_up_minute,
         alert_scan_interval_minutes=settings.alert_scan_interval_minutes,
+        sched_on="selected" if settings.scheduler_enabled else "",
+        sched_off="" if settings.scheduler_enabled else "selected",
     )
 
 
@@ -361,9 +419,16 @@ def _build_updates_from_form(form_data: dict[str, str], current: Settings) -> di
         "SLACK_NOTIFICATION_CHANNEL": "slack_notification_channel",
         "GOOGLE_SHEET_ID": "google_sheet_id",
         "NOTIFICATION_LOCAL_DIR": "notification_local_dir",
-        "DAILY_REPORT_DELIVERY_HOUR": "daily_report_delivery_hour",
-        "DAILY_OVERVIEW_GENERATION_HOUR": "daily_overview_generation_hour",
+        "STANDUP_HOUR": "standup_hour",
+        "STANDUP_MINUTE": "standup_minute",
+        "REPORT_HOUR": "report_hour",
+        "REPORT_MINUTE": "report_minute",
+        "REMINDER_HOUR": "reminder_hour",
+        "REMINDER_MINUTE": "reminder_minute",
+        "WRAP_UP_HOUR": "wrap_up_hour",
+        "WRAP_UP_MINUTE": "wrap_up_minute",
         "ALERT_SCAN_INTERVAL_MINUTES": "alert_scan_interval_minutes",
+        "SCHEDULER_ENABLED": "scheduler_enabled",
     }
     for env_key, field_name in plain_map.items():
         form_value = form_data.get(field_name, "")
@@ -400,20 +465,12 @@ def _settings_from_form(form_data: dict[str, str], current: Settings) -> Setting
     gsa = current.google_service_account_json if _is_masked(gsa_raw) else gsa_raw
 
     return Settings(
-        context_hub_base_url=form_data.get(
-            "context_hub_base_url", current.context_hub_base_url
-        ),
+        context_hub_base_url=form_data.get("context_hub_base_url", current.context_hub_base_url),
         context_hub_api_key=hub_key,
-        context_hub_use_mock=(
-            form_data.get("context_hub_use_mock", "true").lower() == "true"
-        ),
+        context_hub_use_mock=(form_data.get("context_hub_use_mock", "true").lower() == "true"),
         llm_provider=form_data.get("llm_provider", current.llm_provider),
-        claude_code_cli_path=form_data.get(
-            "claude_code_cli_path", current.claude_code_cli_path
-        ),
-        notification_channel=form_data.get(
-            "notification_channel", current.notification_channel
-        ),
+        claude_code_cli_path=form_data.get("claude_code_cli_path", current.claude_code_cli_path),
+        notification_channel=form_data.get("notification_channel", current.notification_channel),
         slack_bot_token=slack_token,
         slack_notification_channel=form_data.get(
             "slack_notification_channel", current.slack_notification_channel
@@ -449,12 +506,20 @@ async def post_settings(
     google_service_account_json: Annotated[str, Form()] = "",
     google_sheet_id: Annotated[str, Form()] = "",
     notification_local_dir: Annotated[str, Form()] = "",
-    daily_report_delivery_hour: Annotated[str, Form()] = "8",
-    daily_overview_generation_hour: Annotated[str, Form()] = "7",
+    standup_hour: Annotated[str, Form()] = "9",
+    standup_minute: Annotated[str, Form()] = "0",
+    report_hour: Annotated[str, Form()] = "14",
+    report_minute: Annotated[str, Form()] = "0",
+    reminder_hour: Annotated[str, Form()] = "17",
+    reminder_minute: Annotated[str, Form()] = "0",
+    wrap_up_hour: Annotated[str, Form()] = "17",
+    wrap_up_minute: Annotated[str, Form()] = "30",
     alert_scan_interval_minutes: Annotated[str, Form()] = "30",
+    scheduler_enabled: Annotated[str, Form()] = "true",
 ) -> Response:
     """フォーム送信を受け取り .env ファイルに書き込む。"""
     form_data = {
+        "scheduler_enabled": scheduler_enabled,
         "context_hub_base_url": context_hub_base_url,
         "context_hub_api_key": context_hub_api_key,
         "context_hub_use_mock": context_hub_use_mock,
@@ -466,8 +531,14 @@ async def post_settings(
         "google_service_account_json": google_service_account_json,
         "google_sheet_id": google_sheet_id,
         "notification_local_dir": notification_local_dir,
-        "daily_report_delivery_hour": daily_report_delivery_hour,
-        "daily_overview_generation_hour": daily_overview_generation_hour,
+        "standup_hour": standup_hour,
+        "standup_minute": standup_minute,
+        "report_hour": report_hour,
+        "report_minute": report_minute,
+        "reminder_hour": reminder_hour,
+        "reminder_minute": reminder_minute,
+        "wrap_up_hour": wrap_up_hour,
+        "wrap_up_minute": wrap_up_minute,
         "alert_scan_interval_minutes": alert_scan_interval_minutes,
     }
 
@@ -478,14 +549,13 @@ async def post_settings(
     ch_err = _validate_channel(notification_channel)
     if ch_err:
         errors.append(ch_err)
-    hr_err = _validate_hour(daily_report_delivery_hour, "daily_report_delivery_hour")
-    if hr_err:
-        errors.append(hr_err)
-    gen_err = _validate_hour(
-        daily_overview_generation_hour, "daily_overview_generation_hour"
-    )
-    if gen_err:
-        errors.append(gen_err)
+    for field, label, _dh, _dm in _SCHEDULE_PHASES:
+        hr_err = _validate_hour(form_data[f"{field}_hour"], f"{label}（時）")
+        if hr_err:
+            errors.append(hr_err)
+        mn_err = _validate_minute(form_data[f"{field}_minute"], f"{label}（分）")
+        if mn_err:
+            errors.append(mn_err)
     int_err = _validate_interval(alert_scan_interval_minutes)
     if int_err:
         errors.append(int_err)
@@ -506,7 +576,23 @@ async def post_settings(
     get_settings.cache_clear()
     updated_settings = get_settings()
 
+    # 範囲は検証済み。運用上の注意（同時刻など）を warning として表示する。
+    validation = validate_schedule(
+        ScheduleConfig(
+            standup_hour=int(standup_hour),
+            standup_minute=int(standup_minute),
+            report_hour=int(report_hour),
+            report_minute=int(report_minute),
+            reminder_hour=int(reminder_hour),
+            reminder_minute=int(reminder_minute),
+            wrap_up_hour=int(wrap_up_hour),
+            wrap_up_minute=int(wrap_up_minute),
+            scan_interval_minutes=int(alert_scan_interval_minutes),
+        )
+    )
     banner = '<div class="banner-ok">設定を保存しました。</div>'
+    for warning in validation.warnings:
+        banner += f'<div class="banner-err" style="background:#fef3c7;color:#92400e;">注意: {warning}</div>'
     return HTMLResponse(content=_render_page(updated_settings, banner))
 
 
@@ -533,9 +619,7 @@ async def test_context_hub(
             resp.raise_for_status()
         return JSONResponse({"ok": True, "detail": f"接続成功 (HTTP {resp.status_code})"})
     except httpx.HTTPStatusError as exc:
-        return JSONResponse(
-            {"ok": False, "detail": f"HTTP エラー: {exc.response.status_code}"}
-        )
+        return JSONResponse({"ok": False, "detail": f"HTTP エラー: {exc.response.status_code}"})
     except Exception as exc:
         return JSONResponse({"ok": False, "detail": f"接続失敗: {exc}"})
 
@@ -562,7 +646,8 @@ async def test_delivery(
     form_data = {
         "notification_channel": channel,
         "slack_bot_token": slack_bot_token,
-        "slack_notification_channel": slack_notification_channel or current.slack_notification_channel,
+        "slack_notification_channel": slack_notification_channel
+        or current.slack_notification_channel,
         "google_service_account_json": google_service_account_json,
         "google_sheet_id": google_sheet_id or current.google_sheet_id,
         "notification_local_dir": notification_local_dir or current.notification_local_dir,

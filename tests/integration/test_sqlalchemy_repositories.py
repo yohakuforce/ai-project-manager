@@ -24,6 +24,12 @@ from src.domain.alert.aggregate import (
     Evidence,
     EvidenceType,
 )
+from src.domain.gate.aggregate import (
+    GateDecision,
+    GateStatus,
+    GateType,
+    LeaderGate,
+)
 from src.domain.member.aggregate import Member
 from src.domain.member.value_objects import (
     Availability,
@@ -60,6 +66,7 @@ from src.infrastructure.db.base import Base
 from src.infrastructure.repositories.sqlalchemy import (
     SqlAlchemyAlertRepository,
     SqlAlchemyDailyReportRepository,
+    SqlAlchemyLeaderGateRepository,
     SqlAlchemyMemberRepository,
     SqlAlchemyProjectRepository,
 )
@@ -413,3 +420,59 @@ class TestSqlAlchemyDailyReportRepository:
         results = await repo.find_by_status("project-001", ReportStatus.DELIVERED)
         assert len(results) == 1
         assert results[0].member_id == "m2"
+
+
+# ============================================================
+# LeaderGate Repository
+# ============================================================
+
+
+def _make_gate(project_id: str = "project-001") -> LeaderGate:
+    return LeaderGate.create(
+        project_id=project_id,
+        gate_type=GateType.TASK_STATE_CURRENT,
+        gate_date=date(2026, 6, 2),
+        context={"notable_task_ids": ["t1", "t2"]},
+    )
+
+
+class TestSqlAlchemyLeaderGateRepository:
+    async def test_save_and_find_by_id_round_trip(self, session_factory) -> None:
+        repo = SqlAlchemyLeaderGateRepository(session_factory)
+        gate = _make_gate()
+        await repo.save(gate)
+
+        found = await repo.find_by_id(gate.gate_id)
+        assert found is not None
+        assert found.gate_type == GateType.TASK_STATE_CURRENT
+        assert found.status == GateStatus.PENDING
+        assert found.context["notable_task_ids"] == ["t1", "t2"]
+        assert found.gate_date == date(2026, 6, 2)
+
+    async def test_find_pending_excludes_resolved(self, session_factory) -> None:
+        repo = SqlAlchemyLeaderGateRepository(session_factory)
+        pending = _make_gate()
+        resolved = _make_gate()
+        resolved.resolve(decision=GateDecision.PROCEED, resolved_by="leader-1")
+        await repo.save(pending)
+        await repo.save(resolved)
+
+        results = await repo.find_pending_by_project("project-001")
+        assert len(results) == 1
+        assert results[0].gate_id == pending.gate_id
+
+    async def test_resolve_persists_across_reload(self, session_factory) -> None:
+        # 翌日の確認を想定: 保存 → 別インスタンスから取得して解決 → 再取得で確定が残る
+        repo = SqlAlchemyLeaderGateRepository(session_factory)
+        gate = _make_gate()
+        await repo.save(gate)
+
+        reloaded = await repo.find_by_id(gate.gate_id)
+        reloaded.resolve(decision=GateDecision.PROCEED, resolved_by="leader-1")
+        await repo.save(reloaded)
+
+        again = await repo.find_by_id(gate.gate_id)
+        assert again.status == GateStatus.RESOLVED
+        assert again.decision == GateDecision.PROCEED
+        assert again.resolved_by == "leader-1"
+        assert again.resolved_at is not None

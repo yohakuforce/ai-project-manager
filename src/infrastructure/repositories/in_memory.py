@@ -10,6 +10,8 @@ from datetime import date
 
 from src.domain.alert.aggregate import Alert, AlertId, AlertSeverity, AlertStatus
 from src.domain.alert.repository import AlertRepository
+from src.domain.gate.aggregate import GateStatus, LeaderGate, LeaderGateId
+from src.domain.gate.repository import LeaderGateRepository
 from src.domain.member.aggregate import Member
 from src.domain.member.repository import MemberRepository
 from src.domain.member.value_objects import MemberId
@@ -135,6 +137,38 @@ class InMemoryDailyReportRepository(DailyReportRepository):
     async def save(self, report: DailyReport) -> DailyReport:
         self._store[str(report.report_id)] = report
         return report
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+class InMemoryLeaderGateRepository(LeaderGateRepository):
+    """リーダー確認ゲートのインメモリ実装。
+
+    MVP ではこの実装のみ。プロセス再起動で未解決ゲートは消える（手動再実行で復旧）。
+    """
+
+    def __init__(self) -> None:
+        self._store: dict[str, LeaderGate] = {}
+
+    async def find_by_id(self, gate_id: LeaderGateId) -> LeaderGate | None:
+        return self._store.get(str(gate_id))
+
+    async def find_pending_by_project(self, project_id: str) -> list[LeaderGate]:
+        return [
+            g
+            for g in self._store.values()
+            if g.project_id == project_id and g.status == GateStatus.PENDING
+        ]
+
+    async def find_by_status(self, project_id: str, status: GateStatus) -> list[LeaderGate]:
+        return [
+            g for g in self._store.values() if g.project_id == project_id and g.status == status
+        ]
+
+    async def save(self, gate: LeaderGate) -> LeaderGate:
+        self._store[str(gate.gate_id)] = gate
+        return gate
 
     def clear(self) -> None:
         self._store.clear()

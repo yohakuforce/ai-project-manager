@@ -9,12 +9,17 @@ from __future__ import annotations
 
 from src.application.alert.service import AlertService
 from src.application.assign.service import AssignService
+from src.application.gate.service import GateService
 from src.application.overview.service import OverviewService
 from src.application.plan.service import PlanService
+from src.application.standup.service import StandupService
+from src.application.status.service import ProjectStatusService
 from src.application.track.service import TrackService
+from src.application.wrapup.service import WrapUpService
 from src.config.settings import get_settings
 from src.domain.alert.repository import AlertRepository
 from src.domain.audit.repository import AuditLogRepository
+from src.domain.gate.repository import LeaderGateRepository
 from src.domain.member.repository import MemberRepository
 from src.domain.project.repository import ProjectRepository
 from src.domain.reporting.repository import DailyReportRepository
@@ -97,6 +102,10 @@ def get_report_repo() -> DailyReportRepository:
     return get_repositories().report
 
 
+def get_gate_repo() -> LeaderGateRepository:
+    return get_repositories().gate
+
+
 def reset_singletons_for_tests() -> None:
     """テスト用: 全シングルトンをリセットする。production では呼ばない。"""
     global _llm_adapter, _notifier, _audit_repo, _repositories
@@ -136,6 +145,7 @@ def get_track_service() -> TrackService:
         llm_adapter=get_llm_adapter(),
         notifier=get_notifier(),
         default_channel=settings.slack_notification_channel,
+        leader_channel=settings.slack_notification_channel,
         audit_repository=get_audit_repo(),
     )
 
@@ -162,3 +172,58 @@ def get_overview_service() -> OverviewService:
         daily_report_repository=get_report_repo(),
         llm_adapter=get_llm_adapter(),
     )
+
+
+def get_standup_service() -> StandupService:
+    settings = get_settings()
+    return StandupService(
+        project_repository=get_project_repo(),
+        member_repository=get_member_repo(),
+        daily_report_repository=get_report_repo(),
+        assign_service=get_assign_service(),
+        llm_adapter=get_llm_adapter(),
+        context_hub_client=get_context_hub_client(),
+        notifier=get_notifier(),
+        leader_channel=settings.slack_notification_channel,
+    )
+
+
+def get_wrap_up_service() -> WrapUpService:
+    settings = get_settings()
+    # open_gate 用の素の GateService（後続ハンドラは不要。解決は API 側の GateService が担う）。
+    gate_service = GateService(get_gate_repo(), audit_repository=get_audit_repo())
+    return WrapUpService(
+        project_repository=get_project_repo(),
+        member_repository=get_member_repo(),
+        daily_report_repository=get_report_repo(),
+        overview_service=get_overview_service(),
+        gate_service=gate_service,
+        notifier=get_notifier(),
+        leader_channel=settings.slack_notification_channel,
+    )
+
+
+def get_status_service() -> ProjectStatusService:
+    settings = get_settings()
+    return ProjectStatusService(
+        overview_service=get_overview_service(),
+        assign_service=get_assign_service(),
+        notifier=get_notifier(),
+        leader_channel=settings.slack_notification_channel,
+    )
+
+
+def get_gate_service() -> GateService:
+    """ゲート解決用 GateService。後続ハンドラ（総括継続 / final_analysis）を登録して返す。
+
+    repositories は singleton のため、WrapUpService / ProjectStatusService を都度生成しても
+    同一データストアを共有する。
+    """
+    gate_service = GateService(get_gate_repo(), audit_repository=get_audit_repo())
+    wrap_up = get_wrap_up_service()
+    status = get_status_service()
+    gate_service.register_continuations(
+        on_wrap_up_proceed=wrap_up.run_summary_and_open_gate,
+        on_task_state_confirmed=status.run_final_analysis,
+    )
+    return gate_service

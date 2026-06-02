@@ -33,6 +33,8 @@ class AuditAction(str, Enum):
     ALERT_CREATED = "alert_created"
     ALERT_ACKNOWLEDGED = "alert_acknowledged"
     CONTEXT_HUB_QUERIED = "context_hub_queried"
+    GATE_OPENED = "gate_opened"
+    GATE_RESOLVED = "gate_resolved"
 
 
 @dataclass(frozen=True)

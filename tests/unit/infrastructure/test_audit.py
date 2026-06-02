@@ -58,7 +58,7 @@ class TestJsonlAuditLogRepository:
         log = _make_log()
         await repo.append(log)
 
-        log_files = sorted(tmp_path.glob("audit-*.jsonl"))  # noqa: ASYNC240
+        log_files = sorted(tmp_path.glob("audit-*.jsonl"))
         assert len(log_files) == 1
         lines = log_files[0].read_text(encoding="utf-8").splitlines()
         assert len(lines) == 1
@@ -106,7 +106,7 @@ class TestJsonlAuditLogRepository:
         await repo.append(today)
         await repo.append(other_day)
 
-        files = sorted(p.name for p in tmp_path.glob("audit-*.jsonl"))  # noqa: ASYNC240
+        files = sorted(p.name for p in tmp_path.glob("audit-*.jsonl"))
         assert len(files) == 2
         assert any("2026-01-01" in name for name in files)
 

@@ -3,43 +3,43 @@
 # ============================================================
 
 # --- Web フレームワーク ---
-fastapi==0.115.5
-uvicorn[standard]==0.32.1
-python-multipart==0.0.12    # フォームデータ受信
+fastapi==0.136.3
+uvicorn[standard]==0.48.0
+python-multipart==0.0.30    # フォームデータ受信
 
 # --- バリデーション ---
-pydantic==2.10.3
-pydantic-settings==2.6.1    # 環境変数設定管理
+pydantic==2.13.4
+pydantic-settings==2.14.1    # 環境変数設定管理
 
 # --- DB ---
-sqlalchemy==2.0.36
-asyncpg==0.30.0
-alembic==1.14.0
+sqlalchemy==2.0.50
+asyncpg==0.31.0
+alembic==1.18.4
 
 # --- HTTP クライアント（Context-Hub 呼び出し・外部 API） ---
 httpx==0.28.1
 
 # --- LLM ---
-anthropic==0.40.0           # Claude API
+anthropic==0.105.2           # Claude API
 
 # --- スケジューラ ---
-apscheduler==3.10.4
+apscheduler==3.11.2
 
 # --- Slack ---
-slack-sdk==3.33.4
+slack-sdk==3.42.0
 
 # --- Google Sheets ---
-gspread>=6.0.0
+gspread>=6.2.1
 
 # --- 環境変数 ---
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 
 # --- 認証 ---
-python-jose[cryptography]==3.3.0    # JWT
-bcrypt==4.2.1                        # パスワードハッシュ
+python-jose[cryptography]==3.5.0    # JWT
+bcrypt==5.0.0                        # パスワードハッシュ
 
 # --- ロギング ---
-structlog==24.4.0
+structlog==25.5.0
 
 # --- ユーティリティ ---
 python-dateutil==2.9.0.post0

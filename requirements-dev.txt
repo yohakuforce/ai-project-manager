@@ -14,7 +14,8 @@ mypy==1.13.0
 types-python-dateutil==2.9.0.20241206
 
 # --- リント ---
-ruff==0.8.4
+# 0.15 系: pyproject.toml の [tool.ruff] 記法をパース可能（0.8.4 は parse error で CI が落ちる）
+ruff==0.15.13
 
 # --- セキュリティ静的解析 ---
 bandit[toml]==1.8.0

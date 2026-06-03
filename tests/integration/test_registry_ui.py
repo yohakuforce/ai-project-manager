@@ -29,7 +29,12 @@ class TestRegisterPage:
     def test_create_project_then_listed(self, client: TestClient) -> None:
         res = client.post(
             "/register/project",
-            data={"name": "案件A", "customer": "顧客A", "goal": "刷新", "context_hub_project_id": "proj-001"},
+            data={
+                "name": "案件A",
+                "customer": "顧客A",
+                "goal": "刷新",
+                "context_hub_project_id": "proj-001",
+            },
         )
         assert res.status_code == 200
         assert "登録しました" in res.text
@@ -54,7 +59,9 @@ class TestRegisterPage:
         assert "山田" in listed
 
     def test_duplicate_member_shows_error(self, client: TestClient) -> None:
-        client.post("/register/member", data={"external_id": "dup", "name": "A", "role": "developer"})
+        client.post(
+            "/register/member", data={"external_id": "dup", "name": "A", "role": "developer"}
+        )
         res = client.post(
             "/register/member", data={"external_id": "dup", "name": "B", "role": "developer"}
         )

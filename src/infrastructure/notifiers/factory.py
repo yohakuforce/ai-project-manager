@@ -25,9 +25,7 @@ logger = logging.getLogger(__name__)
 def _build_slack(settings: Settings) -> Notifier | None:
     """SlackNotifier を構築する。設定不足なら None を返す。"""
     if not settings.slack_bot_token:
-        logger.warning(
-            "SLACK_BOT_TOKEN が未設定のため Slack チャンネルを使用できません。"
-        )
+        logger.warning("SLACK_BOT_TOKEN が未設定のため Slack チャンネルを使用できません。")
         return None
     return SlackNotifier(settings=settings)
 

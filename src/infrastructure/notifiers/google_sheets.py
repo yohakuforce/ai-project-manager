@@ -21,6 +21,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 
 from src.config.settings import Settings
 from src.infrastructure.notifiers.protocol import (
@@ -69,7 +70,7 @@ _MESSAGE_HEADERS = [
 ]
 
 
-def _import_gspread():  # type: ignore[return]
+def _import_gspread() -> Any:
     """gspread を遅延インポートする。未インストールの場合は ImportError を送出する。"""
     try:
         import gspread
@@ -93,7 +94,7 @@ class GoogleSheetsNotifier:
     settings: Settings
     _client: object | None = None  # gspread.Client (型アノテーションは遅延のため object)
 
-    def _get_client(self):  # type: ignore[return]
+    def _get_client(self) -> Any:
         """gspread クライアントを取得する。未初期化なら認証して返す。"""
         if self._client is not None:
             return self._client
@@ -120,7 +121,7 @@ class GoogleSheetsNotifier:
                 f"Google サービスアカウント認証に失敗しました: {exc}", cause=exc
             ) from exc
 
-    def _get_or_create_sheet(self, client, sheet_name: str, headers: list[str]):
+    def _get_or_create_sheet(self, client: Any, sheet_name: str, headers: list[str]) -> Any:
         """スプレッドシートからシートを取得し、存在しなければ作成してヘッダ行を追加する。"""
         if not self.settings.google_sheet_id:
             raise NotificationError("GOOGLE_SHEET_ID が未設定です。.env に設定してください。")

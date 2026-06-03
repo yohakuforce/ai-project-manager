@@ -127,4 +127,4 @@ pytest -q   # 315 passed / 89% coverage
 
 ## スイート全体
 
-Core / Context-Hub / AI Manager の三層がどう繋がるかは、スイートドキュメント（[yohakuforce.github.io/core](https://yohakuforce.github.io/core/)）を参照してください。AI マネージャーの実行モデル（一日の運用タイムライン・日報ライフサイクル）も同ページに図解があります。
+Core / Context-Hub / AI Manager の三層がどう繋がるかは、公式ヘルプ（[yohakuforce.github.io/docs](https://yohakuforce.github.io/docs/)）を参照してください。AI マネージャーの実行モデル（一日の運用タイムライン・日報ライフサイクル・出力先別の挙動）も同サイトに記載があります。

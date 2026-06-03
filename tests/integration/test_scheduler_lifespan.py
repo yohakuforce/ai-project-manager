@@ -13,7 +13,13 @@ from src.api.app import create_app
 from src.config.settings import get_settings
 
 
-def test_scheduler_starts_when_enabled() -> None:
+def test_scheduler_starts_when_enabled(monkeypatch) -> None:
+    # 外部ツール（claude CLI）やトークンに依存せず起動を検証する。
+    # 既定の llm_provider=claude-code は CLI 必須で CI には無いため、mock を使う。
+    monkeypatch.setenv("SCHEDULER_ENABLED", "true")
+    monkeypatch.setenv("LLM_PROVIDER", "mock")
+    monkeypatch.setenv("NOTIFICATION_CHANNEL", "in_memory")
+    monkeypatch.setenv("CONTEXT_HUB_USE_MOCK", "true")
     get_settings.cache_clear()
     app = create_app()
     try:

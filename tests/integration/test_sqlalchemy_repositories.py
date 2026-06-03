@@ -196,6 +196,21 @@ class TestSqlAlchemyProjectRepository:
         found = await repo.find_by_id(ProjectId.generate())
         assert found is None
 
+    async def test_delete_removes_project_and_children(self, session_factory) -> None:
+        repo = SqlAlchemyProjectRepository(session_factory)
+        project = _make_project_with_children()  # task + assignment 付き
+        await repo.save(project)
+
+        await repo.delete(project.project_id)
+
+        assert await repo.find_by_id(project.project_id) is None
+        # cascade で子も消える（再取得しても復活しない）
+        assert await repo.find_all_active() == []
+
+    async def test_delete_missing_is_noop(self, session_factory) -> None:
+        repo = SqlAlchemyProjectRepository(session_factory)
+        await repo.delete(ProjectId.generate())  # 例外を投げない
+
 
 # ============================================================
 # Member Repository
@@ -260,6 +275,16 @@ class TestSqlAlchemyMemberRepository:
         found = await repo.find_by_id(member.member_id)
         assert found is not None
         assert found.name == "田中 次郎"
+
+    async def test_delete_removes_member(self, session_factory) -> None:
+        repo = SqlAlchemyMemberRepository(session_factory)
+        member = _make_member()
+        await repo.save(member)
+
+        await repo.delete(member.member_id)
+
+        assert await repo.find_by_id(member.member_id) is None
+        assert await repo.find_by_external_id("ext-001") is None
 
     async def test_find_all_returns_all_members(self, session_factory) -> None:
         repo = SqlAlchemyMemberRepository(session_factory)

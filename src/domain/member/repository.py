@@ -20,3 +20,6 @@ class MemberRepository(ABC):
 
     @abstractmethod
     async def save(self, member: Member) -> Member: ...
+
+    @abstractmethod
+    async def delete(self, member_id: MemberId) -> None: ...

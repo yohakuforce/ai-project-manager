@@ -148,9 +148,57 @@ class TestGetSettingsPage:
             "wrap_up_hour",
             "wrap_up_minute",
             "alert_scan_interval_minutes",
+            # GUI 化した全 Settings 項目（旧 .env 専用だったもの）
+            "app_env",
+            "log_level",
+            "app_secret_key",
+            "use_database",
+            "database_url",
+            "claude_code_timeout_seconds",
+            "anthropic_api_key",
+            "scheduler_timezone",
+            "cors_origins",
+            "jwt_secret",
+            "jwt_expiry_hours",
+            "audit_log_retention_days",
+            "audit_log_dir",
         ]
         for field in expected_fields:
             assert field in body, f"フィールド '{field}' が HTML に含まれていません"
+
+    def test_fields_have_acquisition_hints(self, client: TestClient) -> None:
+        """各項目に取得方法/説明のヒントが描画されていること（代表例で確認）。"""
+        body = client.get("/settings").text
+        assert "Bot User OAuth Token" in body  # slack_bot_token の取得方法
+        assert "サービスアカウント" in body  # google_service_account_json の取得方法
+        assert "openssl rand -hex 32" in body  # 秘密鍵の生成方法
+        assert "/d/" in body  # google_sheet_id の取得方法
+
+    def test_setup_guides_and_intro_are_rendered(self, client: TestClient) -> None:
+        """『なぜ必要・取得手順・最小構成』のガイドが描画されていること。"""
+        body = client.get("/settings").text
+        # はじめに早見表
+        assert "はじめに — 何を設定すればいい？" in body
+        assert "まず動かす（外部トークン不要）" in body
+        # 折りたたみの取得手順と「なぜ必要」
+        assert "なぜ必要？ 取得・設定の手順" in body
+        assert "<b>なぜ必要</b>" in body
+        # 手順内の取得元URLがリンク化されている
+        assert 'href="https://api.slack.com/apps"' in body
+        assert 'href="https://console.cloud.google.com"' in body
+        # 「いつ必要か」バッジ
+        assert "Slack配信時" in body
+        assert "本番DB時" in body
+
+    def test_all_settings_fields_are_exposed(self, client: TestClient) -> None:
+        """Settings の全フィールドが GUI フォームに存在すること（取りこぼし防止）。"""
+        from src.api.routes.settings_ui import FIELDS
+        from src.config.settings import Settings
+
+        gui_names = {f.name for f in FIELDS}
+        settings_names = set(Settings.model_fields.keys())
+        missing = settings_names - gui_names
+        assert missing == set(), f"GUI 未対応の設定項目: {missing}"
 
     def test_secret_fields_are_masked(self, client: TestClient, tmp_path: Path) -> None:
         """シークレット値はフル値ではなく ••••... でマスクされること。"""
@@ -309,6 +357,53 @@ class TestPostSettings:
 
         content = env_file.read_text(encoding="utf-8")
         assert "CUSTOM_VAR=keep_this" in content
+
+    def test_writes_newly_exposed_fields(self, client: TestClient, tmp_path: Path) -> None:
+        """旧 .env 専用だった項目（TZ・DB・保持日数等）も GUI から書き込めること。"""
+        env_file = tmp_path / ".env"
+        form = {
+            **self._base_form(),
+            "scheduler_timezone": "Asia/Osaka",
+            "use_database": "true",
+            "audit_log_retention_days": "180",
+            "jwt_expiry_hours": "12",
+        }
+        with patch.dict(os.environ, {"SETTINGS_UI_ENV_PATH": str(env_file)}):
+            get_settings.cache_clear()
+            response = client.post("/settings", data=form)
+        assert response.status_code == 200
+        content = env_file.read_text(encoding="utf-8")
+        assert "SCHEDULER_TIMEZONE=Asia/Osaka" in content
+        assert "USE_DATABASE=true" in content
+        assert "AUDIT_LOG_RETENTION_DAYS=180" in content
+        assert "JWT_EXPIRY_HOURS=12" in content
+
+    def test_invalid_app_env_returns_422(self, client: TestClient, tmp_path: Path) -> None:
+        form = {**self._base_form(), "app_env": "staging"}
+        with patch.dict(os.environ, {"SETTINGS_UI_ENV_PATH": str(tmp_path / ".env")}):
+            get_settings.cache_clear()
+            response = client.post("/settings", data=form)
+        assert response.status_code == 422
+        assert "staging" in response.text
+
+    def test_invalid_jwt_expiry_returns_422(self, client: TestClient, tmp_path: Path) -> None:
+        form = {**self._base_form(), "jwt_expiry_hours": "0"}
+        with patch.dict(os.environ, {"SETTINGS_UI_ENV_PATH": str(tmp_path / ".env")}):
+            get_settings.cache_clear()
+            response = client.post("/settings", data=form)
+        assert response.status_code == 422
+
+    def test_new_secret_is_masked_in_get(self, client: TestClient, tmp_path: Path) -> None:
+        env_file = tmp_path / ".env"
+        env_file.write_text("JWT_SECRET=super-secret-jwt-value-xyz\n", encoding="utf-8")
+        with patch.dict(
+            os.environ,
+            {"SETTINGS_UI_ENV_PATH": str(env_file), "JWT_SECRET": "super-secret-jwt-value-xyz"},
+        ):
+            get_settings.cache_clear()
+            response = client.get("/settings")
+        get_settings.cache_clear()
+        assert "super-secret-jwt-value-xyz" not in response.text
 
 
 # ---- POST /settings/test/context-hub ------------------------------------

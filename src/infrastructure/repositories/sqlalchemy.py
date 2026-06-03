@@ -78,6 +78,14 @@ class SqlAlchemyProjectRepository(ProjectRepository):
             await session.commit()
         return project
 
+    async def delete(self, project_id: ProjectId) -> None:
+        async with self._session_factory() as session:
+            model = await self._fetch_with_children(session, str(project_id))
+            if model is not None:
+                # cascade="all, delete-orphan" により tasks / assignments も削除される
+                await session.delete(model)
+                await session.commit()
+
     async def _find_by_status_value(self, status_value: str) -> list[Project]:
         async with self._session_factory() as session:
             stmt = (
@@ -182,6 +190,11 @@ class SqlAlchemyMemberRepository(MemberRepository):
                 existing.updated_at = new_orm.updated_at
             await session.commit()
         return member
+
+    async def delete(self, member_id: MemberId) -> None:
+        async with self._session_factory() as session:
+            await session.execute(delete(MemberModel).where(MemberModel.id == str(member_id)))
+            await session.commit()
 
 
 class SqlAlchemyAlertRepository(AlertRepository):

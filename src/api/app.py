@@ -11,7 +11,17 @@ from typing import TYPE_CHECKING
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.routes import alert, assign, overview, pipeline, plan, settings_ui, track
+from src.api.routes import (
+    alert,
+    assign,
+    guide,
+    overview,
+    pipeline,
+    plan,
+    registry_ui,
+    settings_ui,
+    track,
+)
 from src.config import get_settings
 
 if TYPE_CHECKING:
@@ -110,8 +120,10 @@ def create_app() -> FastAPI:
     async def health() -> dict:
         return {"status": "ok", "version": "0.1.0"}
 
-    # 設定 GUI（認証不要 — ローカル管理者向け、localhost バインド必須）
+    # 設定 GUI / 運用ガイド / 登録 GUI（認証不要 — ローカル管理者向け、localhost バインド必須）
     app.include_router(settings_ui.router)
+    app.include_router(guide.router)
+    app.include_router(registry_ui.router)
 
     # ルーター登録
     app.include_router(plan.router, prefix="/api/v1")

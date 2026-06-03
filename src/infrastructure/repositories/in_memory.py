@@ -40,6 +40,9 @@ class InMemoryProjectRepository(ProjectRepository):
         self._store[str(project.project_id)] = project
         return project
 
+    async def delete(self, project_id: ProjectId) -> None:
+        self._store.pop(str(project_id), None)
+
     def clear(self) -> None:
         """テスト用: データをリセットする。"""
         self._store.clear()
@@ -64,6 +67,9 @@ class InMemoryMemberRepository(MemberRepository):
     async def save(self, member: Member) -> Member:
         self._store[str(member.member_id)] = member
         return member
+
+    async def delete(self, member_id: MemberId) -> None:
+        self._store.pop(str(member_id), None)
 
     def clear(self) -> None:
         self._store.clear()

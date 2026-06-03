@@ -23,3 +23,6 @@ class ProjectRepository(ABC):
 
     @abstractmethod
     async def save(self, project: Project) -> Project: ...
+
+    @abstractmethod
+    async def delete(self, project_id: ProjectId) -> None: ...

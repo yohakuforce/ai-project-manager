@@ -12,6 +12,7 @@ from src.application.assign.service import AssignService
 from src.application.gate.service import GateService
 from src.application.overview.service import OverviewService
 from src.application.plan.service import PlanService
+from src.application.registry.service import RegistryService
 from src.application.standup.service import StandupService
 from src.application.status.service import ProjectStatusService
 from src.application.track.service import TrackService
@@ -116,6 +117,13 @@ def reset_singletons_for_tests() -> None:
 
 
 # --- Application Services ---
+
+
+def get_registry_service() -> RegistryService:
+    return RegistryService(
+        project_repository=get_project_repo(),
+        member_repository=get_member_repo(),
+    )
 
 
 def get_plan_service() -> PlanService:

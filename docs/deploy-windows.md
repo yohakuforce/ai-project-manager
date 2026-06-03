@@ -1,7 +1,7 @@
 # 社内 Windows PC デプロイ手順書（余白フォース AIマネージャー）
 
 対象: 社内 Windows PC 1 台でのパイロット運用（6/1 開始想定）。
-構成: **Context-Hub**（顧客データ取込・文脈提供 / port 8000）＋ **AI-Project-Manager**（5能力 / port 8001）。
+構成: **Context-Hub**（顧客データ取込・文脈提供 / port 8000）＋ **AI-Project-Manager**（7能力 / port 8001）。
 
 > データ境界: 顧客機密は Context-Hub の取込先（社内 PC）に閉じる。AI-PM が REST 越しに受け取るのは
 > 抽象化済みの構造化データのみ。生データを外部 LLM/SaaS に転記しない方針は両層で維持されている。
@@ -13,7 +13,7 @@
 | 項目 | 状態 |
 |---|---|
 | Context-Hub（SQLite）REST + MCP 読み取り | ✅ macOS でライブ検証済（実 issues/meeting/members が camelCase で返ること） |
-| AI-PM 5能力ループ（Plan→Assign→Track→Alert→Overview）| ✅ ライブ Context-Hub に対して通し実行済（`scripts/demo_five_capabilities.py`）|
+| AI-PM 中核5能力ループ（Plan→Assign→Track→Alert→Overview）| ✅ ライブ Context-Hub に対して通し実行済（`scripts/demo_five_capabilities.py`）。残る Standup / WrapUp を加えた全7能力はスケジューラ経由で稼働 |
 | AI-PM Postgres + docker compose（Windows）| ⚠️ **未検証** — 実 Windows + Docker Desktop での `compose up` は現地で要確認 |
 | Slack 配信 | ⚠️ トークン未取得。`local_file` / `google_sheets` で代替起動可 |
 
@@ -73,7 +73,7 @@ copy .env.example .env
 DB_NAME=ai_project_manager
 DB_USER=postgres
 DB_PASSWORD=<強いパスワード>           # compose が必須要求
-LLM_PROVIDER=claude
+LLM_PROVIDER=claude-code               # Claude Code CLI（サブスク範囲・API 課金なし）。既定値
 CONTEXT_HUB_BASE_URL=http://host.docker.internal:8000/api/v1   # コンテナ→ホストのCH
 CONTEXT_HUB_API_KEY=<Context-Hub の DEV_API_KEY と同値>
 CONTEXT_HUB_USE_MOCK=false             # 実 Context-Hub に接続
@@ -94,17 +94,19 @@ docker compose up --build
 
 1. Context-Hub にサンプル投入済みであること（手順 2 の seed）。
 2. AI-PM から Context-Hub の issues が取れること（`CONTEXT_HUB_USE_MOCK=false` で 500/接続エラーが出ないこと）。
-3. 5能力の通し確認は `scripts/demo_five_capabilities.py` を参照（在 macOS 検証スクリプト。Windows でも PYTHONPATH=. で実行可）。
+3. 中核5能力の通し確認は `scripts/demo_five_capabilities.py` を参照（在 macOS 検証スクリプト。Windows でも PYTHONPATH=. で実行可）。Standup / WrapUp を含む全7能力はスケジューラ（`SCHEDULER_ENABLED=true`）で稼働。
 
 ---
 
-## 5. koya 依存（運用開始前に揃えるもの）
+## 5. 運用開始前に揃えるもの
+
+導入担当者が現地で必要になる外部資格情報のチェックリストです。社内固有の承認・
+公開判断など運用判断事項は [`internal/pilot-readiness.md`](internal/pilot-readiness.md)
+に分離しています（公開リポにする際はこの章のみ持ち出せば足ります）。
 
 - **Slack ボットトークン**＋通知チャンネル（無ければ `local_file` で開始可）
 - **データ源 API キー**（Slack / Backlog / Redmine / Gmail）— 取込実装は完了済、キーのみ
-- **GitHub private（yohakuforce）** リポジトリと push 権限
-- **情報システム / 法務のパイロット承認**
-- **公開判断**: Context-Hub camelCase は v0.3.0 破壊的変更（PyPI 公開済のため要判断）/ core npm 再公開可否
+- **GitHub リポジトリ**と push 権限
 
 ---
 

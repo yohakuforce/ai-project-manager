@@ -136,9 +136,7 @@ def client(monkeypatch: pytest.MonkeyPatch) -> HttpContextHubClient:
         kwargs["transport"] = transport
         return real_async_client(*args, **kwargs)
 
-    monkeypatch.setattr(
-        "src.infrastructure.context_hub.http_client.httpx.AsyncClient", _factory
-    )
+    monkeypatch.setattr("src.infrastructure.context_hub.http_client.httpx.AsyncClient", _factory)
     return HttpContextHubClient(base_url=_BASE, api_key="test-key")
 
 

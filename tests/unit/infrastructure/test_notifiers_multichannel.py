@@ -165,9 +165,7 @@ class TestLocalFileNotifier:
         assert line["title"] == "本日のスタンドアップ"
         assert line["action_url"] == "https://example.com/confirm"
 
-    async def test_multiple_notifications_appended_as_separate_lines(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_multiple_notifications_appended_as_separate_lines(self, tmp_path: Path) -> None:
         notifier = LocalFileNotifier(settings=_settings_local(tmp_path))
         await notifier.send_alert(_make_alert_notification())
         await notifier.send_alert(_make_alert_notification())
@@ -177,14 +175,10 @@ class TestLocalFileNotifier:
         lines = [ln for ln in output_file.read_text(encoding="utf-8").splitlines() if ln.strip()]
         assert len(lines) == 3
 
-    async def test_send_daily_report_returns_failure_on_io_error(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_send_daily_report_returns_failure_on_io_error(self, tmp_path: Path) -> None:
         notifier = LocalFileNotifier(settings=_settings_local(tmp_path))
         # _append_line が OSError を送出するようにパッチ
-        with patch.object(
-            notifier, "_append_line", side_effect=NotificationError("IO 失敗")
-        ):
+        with patch.object(notifier, "_append_line", side_effect=NotificationError("IO 失敗")):
             result = await notifier.send_daily_report_invite(_make_report_notification())
 
         assert result.success is False
@@ -193,23 +187,17 @@ class TestLocalFileNotifier:
 
     async def test_send_alert_returns_failure_on_io_error(self, tmp_path: Path) -> None:
         notifier = LocalFileNotifier(settings=_settings_local(tmp_path))
-        with patch.object(
-            notifier, "_append_line", side_effect=NotificationError("IO 失敗")
-        ):
+        with patch.object(notifier, "_append_line", side_effect=NotificationError("IO 失敗")):
             result = await notifier.send_alert(_make_alert_notification())
 
         assert result.success is False
         assert "IO 失敗" in (result.error or "")
 
-    async def test_healthcheck_returns_true_when_dir_writable(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_healthcheck_returns_true_when_dir_writable(self, tmp_path: Path) -> None:
         notifier = LocalFileNotifier(settings=_settings_local(tmp_path))
         assert await notifier.healthcheck() is True
 
-    async def test_healthcheck_returns_false_on_os_error(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_healthcheck_returns_false_on_os_error(self, tmp_path: Path) -> None:
         notifier = LocalFileNotifier(settings=_settings_local(tmp_path))
         with patch.object(notifier, "_ensure_dir", side_effect=OSError("permission denied")):
             assert await notifier.healthcheck() is False
@@ -243,9 +231,7 @@ def _settings_sheets() -> Settings:
 def _make_mock_client(row_range: str = "Sheet1!A2") -> MagicMock:
     """gspread クライアントのモックを組み立てる。"""
     mock_worksheet = MagicMock()
-    mock_worksheet.append_row.return_value = {
-        "updates": {"updatedRange": row_range}
-    }
+    mock_worksheet.append_row.return_value = {"updates": {"updatedRange": row_range}}
 
     mock_spreadsheet = MagicMock()
     mock_spreadsheet.worksheet.return_value = mock_worksheet
@@ -395,9 +381,7 @@ class TestBuildNotifierChannelSelection:
 
     # --- 新チャンネル ---
 
-    def test_local_file_channel_returns_local_file_notifier(
-        self, tmp_path: Path
-    ) -> None:
+    def test_local_file_channel_returns_local_file_notifier(self, tmp_path: Path) -> None:
         settings = Settings(
             notification_channel="local_file",
             notification_local_dir=str(tmp_path),

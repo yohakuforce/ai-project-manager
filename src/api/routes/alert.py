@@ -72,16 +72,17 @@ async def acknowledge_alert(
 
 @router.post(
     "/resolve",
-    status_code=status.HTTP_204_NO_CONTENT,
-    response_class=Response,  # 204 はボディ無し（fastapi 0.115 の厳格チェック対策）
     summary="アラートを解決済みにする",
     dependencies=[Depends(verify_api_key)],
 )
 async def resolve_alert(
     body: ResolveRequest,
     service: AlertService = Depends(get_alert_service),
-) -> None:
+) -> Response:
+    # 204(No Content) はデコレータの status_code ではなく返却 Response で表現する。
+    # （fastapi 0.115 系は decorator に 204 を宣言するとボディ無し検証で起動失敗するため）
     try:
         await service.resolve_alert(alert_id=body.alert_id)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

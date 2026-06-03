@@ -88,6 +88,20 @@ docker compose up --build
 
 動作確認: `http://localhost:8001/health` / 設定GUI `http://localhost:8001/settings`（localhost専用・auth除外）。
 
+### 3 つの GUI（ブラウザだけで一通り回せる）
+
+**設定 `/settings`** — 接続先・LLMプロバイダ・配信時刻などを全項目編集。各項目に「なぜ必要 / 取得手順」付き。秘匿値はマスク表示。
+
+![AI-PM 設定GUI](images/ai-pm-settings.png)
+
+**登録 `/register`** — プロジェクトとメンバーを作成・一覧・削除。
+
+![AI-PM 登録GUI](images/ai-pm-register.png)
+
+**運用ガイド `/guide`** — ゼロ→日次運用までの手順をブラウザ内で確認。
+
+![AI-PM 運用ガイド](images/ai-pm-guide.png)
+
 ---
 
 ## 4. 結線確認（手動スモーク）

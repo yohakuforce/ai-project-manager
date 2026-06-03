@@ -173,13 +173,52 @@ class TestLLMFactory:
                 create_llm_adapter()
         get_settings.cache_clear()
 
-    def test_raises_not_implemented_for_codex(self) -> None:
+    def test_creates_codex_adapter_for_codex_provider(self) -> None:
         from src.config import get_settings
+        from src.infrastructure.llm.codex_adapter import CodexAdapter
         from src.infrastructure.llm.factory import create_llm_adapter
 
         get_settings.cache_clear()
         with patch.dict("os.environ", {"LLM_PROVIDER": "codex"}):
+            with patch("shutil.which", return_value="/usr/local/bin/codex"):
+                get_settings.cache_clear()
+                adapter = create_llm_adapter()
+                assert isinstance(adapter, CodexAdapter)
+        get_settings.cache_clear()
+
+    def test_creates_antigravity_adapter_for_antigravity_provider(self) -> None:
+        from src.config import get_settings
+        from src.infrastructure.llm.antigravity_adapter import AntigravityAdapter
+        from src.infrastructure.llm.factory import create_llm_adapter
+
+        get_settings.cache_clear()
+        with patch.dict("os.environ", {"LLM_PROVIDER": "antigravity"}):
+            with patch("shutil.which", return_value="/usr/local/bin/antigravity"):
+                get_settings.cache_clear()
+                adapter = create_llm_adapter()
+                assert isinstance(adapter, AntigravityAdapter)
+        get_settings.cache_clear()
+
+    def test_creates_local_adapter_for_local_provider(self) -> None:
+        from src.config import get_settings
+        from src.infrastructure.llm.factory import create_llm_adapter
+        from src.infrastructure.llm.local_adapter import LocalLLMAdapter
+
+        get_settings.cache_clear()
+        with patch.dict("os.environ", {"LLM_PROVIDER": "local"}):
             get_settings.cache_clear()
-            with pytest.raises(NotImplementedError):
-                create_llm_adapter()
+            adapter = create_llm_adapter()
+            assert isinstance(adapter, LocalLLMAdapter)
+        get_settings.cache_clear()
+
+    def test_creates_ollama_adapter_for_ollama_provider(self) -> None:
+        from src.config import get_settings
+        from src.infrastructure.llm.factory import create_llm_adapter
+        from src.infrastructure.llm.ollama_adapter import OllamaAdapter
+
+        get_settings.cache_clear()
+        with patch.dict("os.environ", {"LLM_PROVIDER": "ollama"}):
+            get_settings.cache_clear()
+            adapter = create_llm_adapter()
+            assert isinstance(adapter, OllamaAdapter)
         get_settings.cache_clear()

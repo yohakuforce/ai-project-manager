@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
 
 from src.api.deps import get_alert_service
@@ -73,6 +73,7 @@ async def acknowledge_alert(
 @router.post(
     "/resolve",
     status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,  # 204 はボディ無し（fastapi 0.115 の厳格チェック対策）
     summary="アラートを解決済みにする",
     dependencies=[Depends(verify_api_key)],
 )

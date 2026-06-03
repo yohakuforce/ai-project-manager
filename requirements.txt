@@ -27,6 +27,7 @@ apscheduler==3.10.4
 
 # --- Slack ---
 slack-sdk==3.33.4
+aiohttp==3.13.5        # slack-sdk の AsyncWebClient が import 時に必要
 
 # --- Google Sheets ---
 gspread>=6.0.0

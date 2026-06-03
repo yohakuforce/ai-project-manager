@@ -1,0 +1,17 @@
+# gitleaks 設定（CI の Secret Scan が参照）。
+# デフォルトルールを維持しつつ、ドキュメントの例示・プレースホルダ（実シークレットではない）を許可する。
+
+title = "AI-Project-Manager gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "ドキュメント/例示のプレースホルダを許可（実シークレットではない）"
+paths = [
+  '''docs/operations-guide\.md''', # 運用ガイドの curl 例（既定の dev キーを使用）
+  '''\.env\.example''',            # 環境変数テンプレート（すべてプレースホルダ）
+]
+regexes = [
+  '''dev-secret-change-in-production''', # APP_SECRET_KEY 等の既定プレースホルダ値
+]

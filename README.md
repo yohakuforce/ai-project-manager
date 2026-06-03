@@ -84,7 +84,7 @@ Context-Hub (:8000, REST)  ──→  AI-Project-Manager (:8001)  ──→  Sla
 
 ```env
 DB_PASSWORD=<強いパスワード>
-LLM_PROVIDER=claude
+LLM_PROVIDER=claude-code   # Claude Code CLI（サブスク範囲・API 課金なし）。既定値
 CONTEXT_HUB_BASE_URL=http://localhost:8000/api/v1
 CONTEXT_HUB_API_KEY=<Context-Hub の DEV_API_KEY と同値>
 CONTEXT_HUB_USE_MOCK=false

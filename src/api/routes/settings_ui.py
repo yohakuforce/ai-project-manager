@@ -137,8 +137,18 @@ FIELDS: tuple[_Field, ...] = (
         "llm_provider",
         "LLM",
         "select",
-        "利用する LLM。既定 claude-code（Claude Code CLI 経由＝課金APIゼロ）。",
-        options=("claude-code", "codex", "antigravity", "ollama", "mock", "claude"),
+        "利用する LLM。既定 claude-code（Claude Code CLI 経由＝課金APIゼロ）。"
+        "codex / antigravity もサブスク CLI、local は OpenAI 互換ローカル LLM、"
+        "ollama は Ollama native。",
+        options=(
+            "claude-code",
+            "codex",
+            "antigravity",
+            "local",
+            "ollama",
+            "mock",
+            "claude",
+        ),
     ),
     _Field(
         "claude_code_cli_path",
@@ -162,6 +172,102 @@ FIELDS: tuple[_Field, ...] = (
         "LLM",
         "secret",
         "console.anthropic.com → API Keys で発行（sk-ant-…）。llm_provider=claude のときのみ・非推奨。",
+    ),
+    _Field(
+        "codex_cli_path",
+        "codex_cli_path",
+        "LLM",
+        "text",
+        "Codex CLI のパス。`which codex` の出力。空なら PATH から自動検出。"
+        "（llm_provider=codex のとき）",
+    ),
+    _Field(
+        "codex_timeout_seconds",
+        "codex_timeout_seconds",
+        "LLM",
+        "number",
+        "Codex CLI 呼び出しのタイムアウト秒（既定 120）。",
+        min=1,
+        max=3600,
+    ),
+    _Field(
+        "antigravity_cli_path",
+        "antigravity_cli_path",
+        "LLM",
+        "text",
+        "Antigravity CLI のパス。`which antigravity` の出力。空なら PATH から自動検出。"
+        "（llm_provider=antigravity のとき）",
+    ),
+    _Field(
+        "antigravity_prompt_flag",
+        "antigravity_prompt_flag",
+        "LLM",
+        "text",
+        "Antigravity CLI にプロンプトを渡すフラグ（既定 -p）。CLI 仕様に合わせて調整。",
+    ),
+    _Field(
+        "antigravity_timeout_seconds",
+        "antigravity_timeout_seconds",
+        "LLM",
+        "number",
+        "Antigravity CLI 呼び出しのタイムアウト秒（既定 120）。",
+        min=1,
+        max=3600,
+    ),
+    _Field(
+        "local_llm_base_url",
+        "local_llm_base_url",
+        "LLM",
+        "text",
+        "OpenAI 互換ローカル LLM のベースURL（既定 http://localhost:11434/v1）。"
+        "Ollama=:11434/v1 / LM Studio=:1234/v1 / vLLM 等。（llm_provider=local のとき）",
+    ),
+    _Field(
+        "local_llm_model",
+        "local_llm_model",
+        "LLM",
+        "text",
+        "ローカル LLM のモデル名（既定 llama3）。サーバに導入済みのモデル名を指定。",
+    ),
+    _Field(
+        "local_llm_api_key",
+        "local_llm_api_key",
+        "LLM",
+        "secret",
+        "ローカル LLM サーバが鍵を要求する場合のみ設定（通常は空でよい）。",
+    ),
+    _Field(
+        "local_llm_timeout_seconds",
+        "local_llm_timeout_seconds",
+        "LLM",
+        "number",
+        "ローカル LLM 呼び出しのタイムアウト秒（既定 180）。",
+        min=1,
+        max=3600,
+    ),
+    _Field(
+        "ollama_base_url",
+        "ollama_base_url",
+        "LLM",
+        "text",
+        "Ollama native API のベースURL（既定 http://localhost:11434）。"
+        "（llm_provider=ollama のとき）",
+    ),
+    _Field(
+        "ollama_model",
+        "ollama_model",
+        "LLM",
+        "text",
+        "Ollama のモデル名（既定 llama3）。`ollama list` の出力名を指定。",
+    ),
+    _Field(
+        "ollama_timeout_seconds",
+        "ollama_timeout_seconds",
+        "LLM",
+        "number",
+        "Ollama 呼び出しのタイムアウト秒（既定 180）。",
+        min=1,
+        max=3600,
     ),
     # --- Context-Hub ---
     _Field(

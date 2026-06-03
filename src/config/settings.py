@@ -31,13 +31,29 @@ class Settings(BaseSettings):
 
     # --- LLM ---
     # 2026-05-15: claude-code をデフォルトに変更（課金 API ゼロ方針）
-    # 対応: claude-code | codex | antigravity | ollama | mock
+    # 対応: claude-code | codex | antigravity | local | ollama | mock
     # 非推奨: claude（課金 API）
     llm_provider: str = Field(default="claude-code")
     anthropic_api_key: str = Field(default="")  # 非推奨: claude プロバイダのみ使用
-    # Claude Code CLI のパス（None の場合は PATH から自動検出）
+    # Claude Code CLI のパス（空の場合は PATH から自動検出）
     claude_code_cli_path: str = Field(default="")
     claude_code_timeout_seconds: int = Field(default=120)
+    # Codex CLI（サブスク。`codex -q` を subprocess 起動）
+    codex_cli_path: str = Field(default="")  # 空なら PATH から自動検出
+    codex_timeout_seconds: int = Field(default=120)
+    # Antigravity CLI（サブスク。起動方法は環境差があるため設定で差し替え可）
+    antigravity_cli_path: str = Field(default="")  # 空なら PATH から自動検出
+    antigravity_prompt_flag: str = Field(default="-p")  # プロンプトを渡すフラグ
+    antigravity_timeout_seconds: int = Field(default=120)
+    # ローカル LLM（OpenAI 互換。Ollama/LM Studio/vLLM/llama.cpp 等。Ollama 非限定）
+    local_llm_base_url: str = Field(default="http://localhost:11434/v1")
+    local_llm_model: str = Field(default="llama3")
+    local_llm_api_key: str = Field(default="")  # 鍵を要求するサーバ向け（通常は空）
+    local_llm_timeout_seconds: int = Field(default=180)
+    # Ollama native API（/api/generate）
+    ollama_base_url: str = Field(default="http://localhost:11434")
+    ollama_model: str = Field(default="llama3")
+    ollama_timeout_seconds: int = Field(default=180)
 
     # --- Context-Hub ---
     context_hub_base_url: str = Field(default="http://localhost:8000/api/v1")

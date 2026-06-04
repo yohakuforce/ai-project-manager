@@ -2,7 +2,8 @@
 
 **余白フォース / yohakuforce** スイートの進行管理層。[Context-Hub](https://pypi.org/project/yohakuforce-context-hub/) が集約したプロジェクト文脈をもとに、受託・社内プロジェクトの進行を 7 つの能力で回します。
 
-> 社内運用アプリ（private）。Core / Context-Hub は OSS、本リポジトリは社内に閉じます。
+> 余白フォース スイートの進行管理層。Core / Context-Hub と組み合わせて使う運用アプリです。
+> 顧客の生データは Context-Hub（オンプレ）に閉じ、外部 LLM / SaaS には転記しません。
 
 ---
 
@@ -108,7 +109,7 @@ uvicorn src.api.app:app --host 127.0.0.1 --port 8001
 
 > AI-PM は PostgreSQL 専用です（SQLite 非対応）。
 
-詳しい社内 Windows PC 向け手順は [`docs/deploy-windows.md`](docs/deploy-windows.md) を参照。
+詳しい Windows PC 向けデプロイ手順は [`docs/deploy-windows.md`](docs/deploy-windows.md) を参照。
 
 ## 会議 → タスク自動生成
 

@@ -6,7 +6,7 @@ AuditAction.LLM_CALL を AuditLogRepository に追記する。
 設計方針:
   - LLMAdapter プロトコルに対する委譲（Decorator パターン）。
   - 入力プロンプトの生データは保存せず SHA-256 ハッシュのみ記録する
-    （security-governance-v1.md §6-1 「入力データはハッシュで匿名化」）。
+    （入力データはハッシュで匿名化し、生データを残さない）。
   - 監査記録の失敗は LLM 呼び出し結果には影響しない（warning log のみ）。
   - 推定コストは設定可能な単価テーブル（USD / 1k tokens）から算出。
 """

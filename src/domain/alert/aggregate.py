@@ -51,7 +51,6 @@ class EvidenceType(str, Enum):
 class Evidence:
     """
     Alert の根拠データ。AI が "なぜアラートしたか" を必ず明示する。
-    concept-document v3 §4 Alert に準拠。
     """
 
     evidence_type: EvidenceType

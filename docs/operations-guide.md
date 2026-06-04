@@ -28,7 +28,7 @@ AI-Project-Manager（AI-PM）は受託・社内プロジェクトの **進行管
 1. 依存をインストールする。
 
 ```
-cd ~/Desktop/01_active/AI-Project-Manager
+cd /path/to/AI-Project-Manager
 python -m venv .venv
 .venv/bin/pip install -r requirements.txt
 ```

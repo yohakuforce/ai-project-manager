@@ -54,7 +54,6 @@ class TokenUsage:
 class AuditLog:
     """
     監査ログエンティティ。append-only。更新・削除禁止。
-    security-governance-v1.md §6-1 監査ログ要件に準拠。
     """
 
     audit_log_id: AuditLogId

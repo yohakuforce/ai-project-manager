@@ -5,14 +5,14 @@ repositories and a deterministic Mock LLM, while pulling REAL issue data from
 a running Context-Hub REST server (the HTTP client / camelCase contract path).
 
 Prerequisites:
-  1. Context-Hub seeded and serving REST on :8000 (see Context-Hub/scripts/seed_sample.py)
-       cd ~/Desktop/01_active/Context-Hub && source .venv/bin/activate
+  1. Context-Hub seeded and serving REST on :8000 (see the Context-Hub repo's seed script)
+       cd /path/to/Context-Hub && source .venv/bin/activate
        python scripts/seed_sample.py
        DEV_API_KEY=dev-seed-key APP_ENV=development \
-         uvicorn context_hub.main:create_app --factory --host 127.0.0.1 --port 8000
+         context-hub serve --host 127.0.0.1 --port 8000
 
 Run:
-    cd ~/Desktop/01_active/AI-Project-Manager && source .venv/bin/activate
+    cd /path/to/AI-Project-Manager && source .venv/bin/activate
     CONTEXT_HUB_BASE_URL=http://127.0.0.1:8000/api/v1 \
     CONTEXT_HUB_API_KEY=dev-seed-key \
         python scripts/demo_five_capabilities.py

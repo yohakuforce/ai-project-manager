@@ -1,7 +1,7 @@
 """
 LLM アダプタ層。
-security-governance-v1.md Section 0 B. AI エージェントモデル抽象化 に準拠。
-環境変数 LLM_PROVIDER で Claude / Antigravity / Codex を切り替える。
+AI エージェントのモデルを抽象化し、環境変数 LLM_PROVIDER で
+Claude / Antigravity / Codex / ローカル LLM 等を差し替えられるようにする。
 """
 
 from __future__ import annotations

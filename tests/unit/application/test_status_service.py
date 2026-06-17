@@ -27,6 +27,7 @@ from src.infrastructure.repositories.in_memory import (
     InMemoryAlertRepository,
     InMemoryDailyReportRepository,
     InMemoryMemberRepository,
+    InMemoryProjectMemberRepository,
     InMemoryProjectRepository,
 )
 
@@ -70,6 +71,8 @@ async def _build(*, overdue: bool):
         role=MemberRole.DEVELOPER,
     )
     await member_repo.save(member)
+    pm_repo = InMemoryProjectMemberRepository(member_repo)
+    await pm_repo.add(project.project_id, member.member_id)
 
     overview = OverviewService(
         project_repository=project_repo,

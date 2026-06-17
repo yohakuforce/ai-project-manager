@@ -27,6 +27,7 @@ from src.infrastructure.audit.in_memory import InMemoryAuditLogRepository
 from src.infrastructure.llm.mock_adapter import MockLLMAdapter
 from src.infrastructure.repositories.in_memory import (
     InMemoryMemberRepository,
+    InMemoryProjectMemberRepository,
     InMemoryProjectRepository,
 )
 
@@ -75,6 +76,11 @@ def member_repo() -> InMemoryMemberRepository:
 
 
 @pytest.fixture
+def pm_repo(member_repo) -> InMemoryProjectMemberRepository:
+    return InMemoryProjectMemberRepository(member_repo)
+
+
+@pytest.fixture
 def llm() -> MockLLMAdapter:
     return MockLLMAdapter(fixed_response="稼働可能であり、期限内完了率が高いため適任です。")
 
@@ -94,6 +100,11 @@ def service(project_repo, member_repo, llm, audit_repo) -> AssignService:
     )
 
 
+async def _link(pm_repo: InMemoryProjectMemberRepository, project: Project, member: Member) -> None:
+    """テストヘルパー: メンバーをプロジェクトに所属させる。"""
+    await pm_repo.add(project.project_id, member.member_id)
+
+
 @pytest.mark.asyncio
 class TestGenerateDrafts:
     async def test_generates_draft_for_available_member(
@@ -101,11 +112,13 @@ class TestGenerateDrafts:
         service: AssignService,
         project_repo: InMemoryProjectRepository,
         member_repo: InMemoryMemberRepository,
+        pm_repo: InMemoryProjectMemberRepository,
     ) -> None:
         project = _make_project_with_tasks()
         member = _make_member()
         await project_repo.save(project)
         await member_repo.save(member)
+        await _link(pm_repo, project, member)
 
         result = await service.generate_drafts(project_id=str(project.project_id))
 
@@ -135,6 +148,7 @@ class TestGenerateDrafts:
         service: AssignService,
         project_repo: InMemoryProjectRepository,
         member_repo: InMemoryMemberRepository,
+        pm_repo: InMemoryProjectMemberRepository,
     ) -> None:
         project = _make_project_with_tasks()
         member = _make_member()
@@ -142,6 +156,7 @@ class TestGenerateDrafts:
         member.set_availability(Availability(date=date.today(), available_hours=0.0))
         await project_repo.save(project)
         await member_repo.save(member)
+        await _link(pm_repo, project, member)
 
         result = await service.generate_drafts(project_id=str(project.project_id))
 
@@ -157,11 +172,13 @@ class TestGenerateDrafts:
         service: AssignService,
         project_repo: InMemoryProjectRepository,
         member_repo: InMemoryMemberRepository,
+        pm_repo: InMemoryProjectMemberRepository,
     ) -> None:
         project = _make_project_with_tasks()
         member = _make_member()
         await project_repo.save(project)
         await member_repo.save(member)
+        await _link(pm_repo, project, member)
 
         await service.generate_drafts(project_id=str(project.project_id))
 
@@ -173,11 +190,13 @@ class TestGenerateDrafts:
         service: AssignService,
         project_repo: InMemoryProjectRepository,
         member_repo: InMemoryMemberRepository,
+        pm_repo: InMemoryProjectMemberRepository,
     ) -> None:
         project = _make_project_with_tasks()
         member = _make_member()
         await project_repo.save(project)
         await member_repo.save(member)
+        await _link(pm_repo, project, member)
 
         # 1回目: 割当案生成
         result1 = await service.generate_drafts(project_id=str(project.project_id))
@@ -219,6 +238,7 @@ class TestAssignAuditLogging:
         service: AssignService,
         project_repo: InMemoryProjectRepository,
         member_repo: InMemoryMemberRepository,
+        pm_repo: InMemoryProjectMemberRepository,
         audit_repo: InMemoryAuditLogRepository,
     ) -> None:
         project = _make_project_with_tasks()
@@ -226,6 +246,7 @@ class TestAssignAuditLogging:
         member = _make_member()
         member.set_availability(Availability(date=date.today(), available_hours=6.0))
         await member_repo.save(member)
+        await _link(pm_repo, project, member)
 
         result = await service.generate_drafts(project_id=str(project.project_id))
 
@@ -240,6 +261,7 @@ class TestAssignAuditLogging:
         service: AssignService,
         project_repo: InMemoryProjectRepository,
         member_repo: InMemoryMemberRepository,
+        pm_repo: InMemoryProjectMemberRepository,
         audit_repo: InMemoryAuditLogRepository,
     ) -> None:
         project = _make_project_with_tasks()
@@ -257,6 +279,7 @@ class TestAssignAuditLogging:
         member = _make_member()
         member.set_availability(Availability(date=date.today(), available_hours=6.0))
         await member_repo.save(member)
+        await _link(pm_repo, project, member)
 
         result = await service.generate_drafts(project_id=str(project.project_id))
         assert result.assignments_created >= 2

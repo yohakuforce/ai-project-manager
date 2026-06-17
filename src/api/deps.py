@@ -21,7 +21,7 @@ from src.config.settings import get_settings
 from src.domain.alert.repository import AlertRepository
 from src.domain.audit.repository import AuditLogRepository
 from src.domain.gate.repository import LeaderGateRepository
-from src.domain.member.repository import MemberRepository
+from src.domain.member.repository import MemberRepository, ProjectMemberRepository
 from src.domain.project.repository import ProjectRepository
 from src.domain.reporting.repository import DailyReportRepository
 from src.infrastructure.audit.factory import build_audit_log_repository
@@ -95,6 +95,10 @@ def get_member_repo() -> MemberRepository:
     return get_repositories().member
 
 
+def get_project_member_repo() -> ProjectMemberRepository:
+    return get_repositories().project_member
+
+
 def get_alert_repo() -> AlertRepository:
     return get_repositories().alert
 
@@ -123,6 +127,7 @@ def get_registry_service() -> RegistryService:
     return RegistryService(
         project_repository=get_project_repo(),
         member_repository=get_member_repo(),
+        project_member_repository=get_project_member_repo(),
     )
 
 

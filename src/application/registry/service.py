@@ -12,7 +12,7 @@ import logging
 from dataclasses import dataclass
 
 from src.domain.member.aggregate import Member
-from src.domain.member.repository import MemberRepository
+from src.domain.member.repository import MemberRepository, ProjectMemberRepository
 from src.domain.member.value_objects import MemberId, MemberRole
 from src.domain.project.aggregate import Project
 from src.domain.project.repository import ProjectRepository
@@ -70,9 +70,11 @@ class RegistryService:
         self,
         project_repository: ProjectRepository,
         member_repository: MemberRepository,
+        project_member_repository: ProjectMemberRepository | None = None,
     ) -> None:
         self._project_repo = project_repository
         self._member_repo = member_repository
+        self._project_member_repo = project_member_repository
 
     # --- プロジェクト ---
 
@@ -171,3 +173,53 @@ class RegistryService:
         await self._member_repo.delete(mid)
         logger.info("メンバー削除: id=%s name=%s", member_id, name)
         return name
+
+    # --- プロジェクトメンバーシップ ---
+
+    def _require_project_member_repo(self) -> ProjectMemberRepository:
+        if self._project_member_repo is None:
+            raise RegistryError("ProjectMemberRepository が設定されていません。")
+        return self._project_member_repo
+
+    async def add_member_to_project(self, project_id: str, member_id: str) -> None:
+        """プロジェクトにメンバーを追加する。プロジェクト/メンバー不存在は RegistryError。"""
+        pm_repo = self._require_project_member_repo()
+        try:
+            pid = ProjectId.from_str(project_id)
+        except (ValueError, AttributeError) as exc:
+            raise RegistryError("不正なプロジェクトID です。") from exc
+        try:
+            mid = MemberId.from_str(member_id)
+        except (ValueError, AttributeError) as exc:
+            raise RegistryError("不正なメンバーID です。") from exc
+        if await self._project_repo.find_by_id(pid) is None:
+            raise RegistryError("対象のプロジェクトが見つかりません。")
+        if await self._member_repo.find_by_id(mid) is None:
+            raise RegistryError("対象のメンバーが見つかりません。")
+        await pm_repo.add(pid, mid)
+        logger.info("プロジェクトメンバー追加: project=%s member=%s", project_id, member_id)
+
+    async def remove_member_from_project(self, project_id: str, member_id: str) -> None:
+        """プロジェクトからメンバーを除外する。"""
+        pm_repo = self._require_project_member_repo()
+        try:
+            pid = ProjectId.from_str(project_id)
+        except (ValueError, AttributeError) as exc:
+            raise RegistryError("不正なプロジェクトID です。") from exc
+        try:
+            mid = MemberId.from_str(member_id)
+        except (ValueError, AttributeError) as exc:
+            raise RegistryError("不正なメンバーID です。") from exc
+        await pm_repo.remove(pid, mid)
+        logger.info("プロジェクトメンバー削除: project=%s member=%s", project_id, member_id)
+
+    async def list_project_members(self, project_id: str) -> list[MemberView]:
+        """プロジェクトに所属するメンバー一覧を返す。"""
+        try:
+            pid = ProjectId.from_str(project_id)
+        except (ValueError, AttributeError) as exc:
+            raise RegistryError("不正なプロジェクトID です。") from exc
+        if await self._project_repo.find_by_id(pid) is None:
+            raise RegistryError("対象のプロジェクトが見つかりません。")
+        members = await self._member_repo.find_by_project_id(pid)
+        return [_member_view(m) for m in members]

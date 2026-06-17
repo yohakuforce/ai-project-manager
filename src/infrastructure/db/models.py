@@ -22,6 +22,7 @@ from sqlalchemy import (
     ForeignKey,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -64,6 +65,9 @@ class ProjectModel(Base):
         back_populates="project", cascade="all, delete-orphan"
     )
     assignments: Mapped[list[AssignmentModel]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
+    project_members: Mapped[list[ProjectMemberModel]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
 
@@ -127,6 +131,30 @@ class MemberModel(Base):
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )
+    project_members: Mapped[list[ProjectMemberModel]] = relationship(
+        back_populates="member", cascade="all, delete-orphan"
+    )
+
+
+class ProjectMemberModel(Base):
+    """Project ↔ Member 多対多ブリッジテーブル。"""
+
+    __tablename__ = "project_members"
+    __table_args__ = (UniqueConstraint("project_id", "member_id", name="uq_project_members"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    member_id: Mapped[str] = mapped_column(
+        ForeignKey("members.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    joined_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    project: Mapped[ProjectModel] = relationship(back_populates="project_members")
+    member: Mapped[MemberModel] = relationship(back_populates="project_members")
 
 
 # ============================================================

@@ -38,6 +38,7 @@ from src.infrastructure.repositories.in_memory import (
     InMemoryDailyReportRepository,
     InMemoryLeaderGateRepository,
     InMemoryMemberRepository,
+    InMemoryProjectMemberRepository,
     InMemoryProjectRepository,
 )
 
@@ -68,6 +69,7 @@ def _report(member_id: str, status: ReportStatus, project_id: str) -> DailyRepor
 async def _build():
     project_repo = InMemoryProjectRepository()
     member_repo = InMemoryMemberRepository()
+    pm_repo = InMemoryProjectMemberRepository(member_repo)
     report_repo = InMemoryDailyReportRepository()
     alert_repo = InMemoryAlertRepository()
     gate_repo = InMemoryLeaderGateRepository()
@@ -111,7 +113,16 @@ async def _build():
         notifier=notifier,
         leader_channel="#leader",
     )
-    return wrapup, gate_service, member_repo, report_repo, notifier, str(project.project_id)
+    return (
+        wrapup,
+        gate_service,
+        member_repo,
+        pm_repo,
+        report_repo,
+        notifier,
+        str(project.project_id),
+        project.project_id,
+    )
 
 
 def _member(name: str) -> Member:
@@ -125,9 +136,19 @@ def _member(name: str) -> Member:
 
 class TestWrapUpRun:
     async def test_all_submitted_opens_task_state_gate(self) -> None:
-        wrapup, gate_service, member_repo, report_repo, notifier, pid = await _build()
+        (
+            wrapup,
+            gate_service,
+            member_repo,
+            pm_repo,
+            report_repo,
+            notifier,
+            pid,
+            project_id,
+        ) = await _build()
         m = _member("提出済")
         await member_repo.save(m)
+        await pm_repo.add(project_id, m.member_id)
         await report_repo.save(_report(str(m.member_id), ReportStatus.SUBMITTED, pid))
 
         result = await wrapup.run(pid, WRAP_DATE)
@@ -140,9 +161,19 @@ class TestWrapUpRun:
         assert notifier.filter("message")[0].payload.kind == "gate"
 
     async def test_unsubmitted_opens_wrap_up_decision_gate(self) -> None:
-        wrapup, gate_service, member_repo, report_repo, notifier, pid = await _build()
+        (
+            wrapup,
+            gate_service,
+            member_repo,
+            pm_repo,
+            report_repo,
+            notifier,
+            pid,
+            project_id,
+        ) = await _build()
         m = _member("未提出")
         await member_repo.save(m)
+        await pm_repo.add(project_id, m.member_id)
         await report_repo.save(_report(str(m.member_id), ReportStatus.DELIVERED, pid))
 
         result = await wrapup.run(pid, WRAP_DATE)
@@ -157,7 +188,16 @@ class TestWrapUpRun:
 
     async def test_run_summary_and_open_gate_directly(self) -> None:
         # WRAP_UP_DECISION を PROCEED 解決した後に呼ばれる継続処理に相当
-        wrapup, gate_service, _member_repo, _report_repo, _notifier, pid = await _build()
+        (
+            wrapup,
+            gate_service,
+            _member_repo,
+            _pm_repo,
+            _report_repo,
+            _notifier,
+            pid,
+            _project_id,
+        ) = await _build()
         result = await wrapup.run_summary_and_open_gate(pid, WRAP_DATE)
         assert result.gate_type_opened == GateType.TASK_STATE_CURRENT.value
         assert len(await gate_service.list_pending(pid)) == 1

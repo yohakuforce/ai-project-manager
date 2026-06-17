@@ -144,13 +144,70 @@ def _member_rows(members: list[MemberView]) -> str:
     return head + body + "</tbody></table>"
 
 
+def _member_select_options(all_members: list[MemberView], assigned_ids: set[str]) -> str:
+    """追加候補メンバーの select options（既に割当済みは除外）。"""
+    candidates = [m for m in all_members if m.member_id not in assigned_ids]
+    if not candidates:
+        return '<option disabled value="">（追加できるメンバーがいません）</option>'
+    return "".join(
+        f'<option value="{html.escape(m.member_id)}">'
+        f"{html.escape(m.name)} ({html.escape(m.role)})</option>"
+        for m in candidates
+    )
+
+
+def _project_member_section(
+    project: ProjectView,
+    project_members: list[MemberView],
+    all_members: list[MemberView],
+) -> str:
+    """プロジェクト 1 件分のメンバー管理 UI ブロックを返す。"""
+    assigned_ids = {m.member_id for m in project_members}
+    member_rows = "".join(
+        f"<tr><td>{html.escape(m.name)}</td><td><code>{html.escape(m.external_id)}</code></td>"
+        f"<td>{html.escape(m.role)}</td>"
+        f"<td>{_delete_form(f'/register/project/{project.project_id}/members/{m.member_id}/remove', 'メンバー「' + html.escape(m.name) + '」をプロジェクトから除外')}</td></tr>"
+        for m in project_members
+    )
+    member_table = (
+        "<table><thead><tr><th>名前</th><th>external_id</th><th>役割</th><th></th></tr></thead>"
+        f"<tbody>{member_rows}</tbody></table>"
+        if project_members
+        else '<p class="empty">まだメンバーが割り当てられていません。</p>'
+    )
+    add_form = (
+        f'<form method="POST" action="/register/project/{project.project_id}/members/add" '
+        'style="display:flex;gap:8px;align-items:center;margin-top:8px;">'
+        f'<select name="member_id" style="flex:1">{_member_select_options(all_members, assigned_ids)}</select>'
+        '<button type="submit" class="save" style="margin:0">追加</button>'
+        "</form>"
+    )
+    return (
+        f"<details style='margin:10px 0;border:1px solid var(--line);border-radius:3px;padding:0 12px;'>"
+        f"<summary style='padding:10px 0;cursor:pointer;font-weight:600'>"
+        f"{html.escape(project.name)} "
+        f"<span style='color:var(--muted);font-size:.82rem'>（{len(project_members)}名）</span>"
+        f"</summary>"
+        f"<div style='padding-bottom:12px'>"
+        f"{member_table}"
+        f"{add_form}"
+        f"</div>"
+        f"</details>"
+    )
+
+
 def _render_page(
     projects: list[ProjectView],
     members: list[MemberView],
     default_endpoint: str,
     banner: str = "",
+    project_members_map: dict[str, list[MemberView]] | None = None,
 ) -> str:
     ep = html.escape(default_endpoint)
+    pm_map = project_members_map or {}
+    project_membership_blocks = "".join(
+        _project_member_section(p, pm_map.get(p.project_id, []), members) for p in projects
+    )
     return (
         _HEAD
         + banner
@@ -186,6 +243,13 @@ def _render_page(
         + '<button type="submit" class="save">メンバーを登録</button></fieldset></form>'
         + "<h2>登録済みメンバー</h2>"
         + _member_rows(members)
+        + "<h2>プロジェクトのメンバー設定</h2>"
+        + '<p class="lead">各プロジェクトに参加するメンバーを設定します。'
+        "割当・日報・アラートは<b>プロジェクトに所属するメンバーのみ</b>が対象になります。</p>"
+        + (
+            project_membership_blocks
+            or '<p class="empty">プロジェクトがありません。先に登録してください。</p>'
+        )
         + _TAIL
     )
 
@@ -195,7 +259,14 @@ async def _render(banner: str = "") -> HTMLResponse:
     projects = await service.list_projects()
     members = await service.list_members()
     endpoint = get_settings().context_hub_base_url
-    return HTMLResponse(content=_render_page(projects, members, endpoint, banner))
+    # プロジェクトごとのメンバー一覧をロード（エラーは無視してページを返す）
+    pm_map: dict[str, list[MemberView]] = {}
+    for p in projects:
+        try:
+            pm_map[p.project_id] = await service.list_project_members(p.project_id)
+        except RegistryError:
+            pm_map[p.project_id] = []
+    return HTMLResponse(content=_render_page(projects, members, endpoint, banner, pm_map))
 
 
 @router.get("", response_class=HTMLResponse)
@@ -271,3 +342,26 @@ async def delete_member(member_id: str) -> Response:
     return await _render(
         f'<div class="banner-ok">メンバー「{html.escape(name)}」を削除しました。</div>'
     )
+
+
+@router.post("/project/{project_id}/members/add", response_class=HTMLResponse)
+async def add_project_member(
+    project_id: str,
+    member_id: Annotated[str, Form()] = "",
+) -> Response:
+    service = get_registry_service()
+    try:
+        await service.add_member_to_project(project_id, member_id)
+    except RegistryError as exc:
+        return await _render(f'<div class="banner-err">追加エラー: {html.escape(str(exc))}</div>')
+    return await _render('<div class="banner-ok">メンバーをプロジェクトに追加しました。</div>')
+
+
+@router.post("/project/{project_id}/members/{member_id}/remove", response_class=HTMLResponse)
+async def remove_project_member(project_id: str, member_id: str) -> Response:
+    service = get_registry_service()
+    try:
+        await service.remove_member_from_project(project_id, member_id)
+    except RegistryError as exc:
+        return await _render(f'<div class="banner-err">除外エラー: {html.escape(str(exc))}</div>')
+    return await _render('<div class="banner-ok">メンバーをプロジェクトから除外しました。</div>')

@@ -18,6 +18,7 @@ from src.api.routes import (
     overview,
     pipeline,
     plan,
+    registry,
     registry_ui,
     settings_ui,
     track,
@@ -126,6 +127,7 @@ def create_app() -> FastAPI:
     app.include_router(registry_ui.router)
 
     # ルーター登録
+    app.include_router(registry.router, prefix="/api/v1")
     app.include_router(plan.router, prefix="/api/v1")
     app.include_router(assign.router, prefix="/api/v1")
     app.include_router(track.router, prefix="/api/v1")

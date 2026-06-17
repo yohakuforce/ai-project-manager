@@ -37,6 +37,7 @@ from src.infrastructure.notifiers import InMemoryNotifier
 from src.infrastructure.repositories.in_memory import (
     InMemoryDailyReportRepository,
     InMemoryMemberRepository,
+    InMemoryProjectMemberRepository,
     InMemoryProjectRepository,
 )
 
@@ -107,6 +108,10 @@ async def _build():
     candidate = _member("代替")
     await member_repo.save(current)
     await member_repo.save(candidate)
+    # プロジェクトにメンバーを所属させる
+    pm_repo = InMemoryProjectMemberRepository(member_repo)
+    await pm_repo.add(project.project_id, current.member_id)
+    await pm_repo.add(project.project_id, candidate.member_id)
     # overdue_task を current に confirmed 割当（=アサイン問題の対象）
     project.assignments.append(
         Assignment(

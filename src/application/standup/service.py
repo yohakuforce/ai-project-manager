@@ -108,7 +108,9 @@ class StandupService:
             project=project,
             today=today,
             submitted=submitted,
-            total_members=len(await self._member_repo.find_all()),
+            total_members=len(
+                await self._member_repo.find_by_project_id(ProjectId.from_str(project_id))
+            ),
             blockers=blockers,
             problem_count=len(problem_task_ids),
             reassignments_created=reassignments_created,

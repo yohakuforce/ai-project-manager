@@ -88,7 +88,7 @@ class WrapUpService:
             return await self.run_summary_and_open_gate(project_id, target_date)
 
         # 未提出あり → リーダー判断ゲート
-        unsubmitted_names = await self._member_names(unsubmitted_ids)
+        unsubmitted_names = await self._member_names(project_id, unsubmitted_ids)
         gate = await self._gate.open_gate(
             project_id=project_id,
             gate_type=GateType.WRAP_UP_DECISION,
@@ -165,7 +165,7 @@ class WrapUpService:
 
     async def _unsubmitted_member_ids(self, project_id: str, target_date: date) -> list[str]:
         """当日に提出（SUBMITTED/ANALYZED）が無いメンバー ID を返す。"""
-        members = await self._member_repo.find_all()
+        members = await self._member_repo.find_by_project_id(ProjectId.from_str(project_id))
         reports = await self._report_repo.find_by_project_and_date(project_id, target_date)
         submitted_member_ids = {
             r.member_id
@@ -174,8 +174,8 @@ class WrapUpService:
         }
         return [str(m.member_id) for m in members if str(m.member_id) not in submitted_member_ids]
 
-    async def _member_names(self, member_ids: list[str]) -> list[str]:
-        members = await self._member_repo.find_all()
+    async def _member_names(self, project_id_str: str, member_ids: list[str]) -> list[str]:
+        members = await self._member_repo.find_by_project_id(ProjectId.from_str(project_id_str))
         name_by_id = {str(m.member_id): m.name for m in members}
         return [name_by_id.get(mid, mid) for mid in member_ids]
 

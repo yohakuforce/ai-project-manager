@@ -147,7 +147,7 @@ class TrackService:
         if project is None:
             raise ValueError(f"Project が見つかりません: {project_id}")
 
-        members = await self._member_repo.find_all()
+        members = await self._member_repo.find_by_project_id(ProjectId.from_str(project_id))
         active_tasks = project.active_tasks()
         created_ids: list[str] = []
 

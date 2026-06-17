@@ -32,6 +32,7 @@ from src.infrastructure.notifiers.in_memory import InMemoryNotifier
 from src.infrastructure.repositories.in_memory import (
     InMemoryDailyReportRepository,
     InMemoryMemberRepository,
+    InMemoryProjectMemberRepository,
     InMemoryProjectRepository,
 )
 
@@ -131,6 +132,9 @@ class TestGenerateDailyReportTemplates:
         member = _make_member()
         await project_repo.save(project)
         await member_repo.save(member)
+        # プロジェクトにメンバーを所属させる
+        pm_repo = InMemoryProjectMemberRepository(member_repo)
+        await pm_repo.add(project.project_id, member.member_id)
 
         result = await service.generate_daily_report_templates(project_id=str(project.project_id))
 
@@ -144,6 +148,9 @@ class TestGenerateDailyReportTemplates:
         member = _make_member()
         await project_repo.save(project)
         await member_repo.save(member)
+        # プロジェクトにメンバーを所属させる
+        pm_repo = InMemoryProjectMemberRepository(member_repo)
+        await pm_repo.add(project.project_id, member.member_id)
 
         # 1回目生成
         await service.generate_daily_report_templates(project_id=str(project.project_id))

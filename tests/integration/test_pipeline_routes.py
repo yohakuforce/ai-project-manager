@@ -35,6 +35,7 @@ from src.infrastructure.repositories.in_memory import (
     InMemoryDailyReportRepository,
     InMemoryLeaderGateRepository,
     InMemoryMemberRepository,
+    InMemoryProjectMemberRepository,
     InMemoryProjectRepository,
 )
 
@@ -44,6 +45,7 @@ _HEADERS = {"X-Api-Key": _API_KEY}
 # 共有リポジトリ群
 _project_repo = InMemoryProjectRepository()
 _member_repo = InMemoryMemberRepository()
+_pm_repo = InMemoryProjectMemberRepository(_member_repo)
 _alert_repo = InMemoryAlertRepository()
 _report_repo = InMemoryDailyReportRepository()
 _gate_repo = InMemoryLeaderGateRepository()
@@ -105,7 +107,7 @@ def _gate_service() -> GateService:
 @pytest.fixture(autouse=True)
 def _clear():
     _project_repo.clear()
-    _member_repo.clear()
+    _member_repo.clear()  # also clears _pm_repo memberships via shared dict
     _alert_repo.clear()
     _report_repo.clear()
     _gate_repo.clear()
@@ -139,6 +141,7 @@ def _seed_project() -> Project:
         role=MemberRole.DEVELOPER,
     )
     asyncio.run(_member_repo.save(member))
+    asyncio.run(_pm_repo.add(project.project_id, member.member_id))
     return project
 
 

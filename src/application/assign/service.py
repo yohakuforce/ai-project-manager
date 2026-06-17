@@ -100,9 +100,12 @@ class AssignService:
         if project is None:
             raise ValueError(f"Project が見つかりません: {project_id}")
 
-        members = await self._member_repo.find_all()
+        members = await self._member_repo.find_by_project_id(ProjectId.from_str(project_id))
         if not members:
-            logger.warning("メンバーが登録されていません。割当案は生成できません。")
+            logger.warning(
+                "プロジェクト %s にメンバーが割り当てられていません。割当案は生成できません。",
+                project_id,
+            )
             return AssignDraftResult(
                 project_id=project_id,
                 assignments_created=0,
@@ -178,7 +181,7 @@ class AssignService:
         if project is None:
             raise ValueError(f"Project が見つかりません: {project_id}")
 
-        members = await self._member_repo.find_all()
+        members = await self._member_repo.find_by_project_id(ProjectId.from_str(project_id))
         problem_set = set(problem_task_ids)
         current_by_task = {str(a.task_id): a for a in project.confirmed_assignments()}
         draft_task_ids = {str(a.task_id) for a in project.draft_assignments()}

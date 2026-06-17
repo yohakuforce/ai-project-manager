@@ -24,6 +24,7 @@ from src.domain.project.value_objects import (
 from src.infrastructure.llm.mock_adapter import MockLLMAdapter
 from src.infrastructure.repositories.in_memory import (
     InMemoryMemberRepository,
+    InMemoryProjectMemberRepository,
     InMemoryProjectRepository,
 )
 
@@ -66,9 +67,11 @@ def _overdue_task() -> Task:
 async def _service_with(project: Project, members: list[Member]):
     project_repo = InMemoryProjectRepository()
     member_repo = InMemoryMemberRepository()
+    pm_repo = InMemoryProjectMemberRepository(member_repo)
     await project_repo.save(project)
     for m in members:
         await member_repo.save(m)
+        await pm_repo.add(project.project_id, m.member_id)
     service = AssignService(
         project_repository=project_repo,
         member_repository=member_repo,

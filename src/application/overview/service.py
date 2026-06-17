@@ -122,7 +122,7 @@ class OverviewService:
         if project is None:
             raise ValueError(f"Project が見つかりません: {project_id}")
 
-        members = await self._member_repo.find_all()
+        members = await self._member_repo.find_by_project_id(ProjectId.from_str(project_id))
 
         # Task 集計
         all_tasks = project.tasks

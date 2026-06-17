@@ -6,7 +6,8 @@ session_factory を受け取り、メソッドごとに短命セッションを�
 
 from __future__ import annotations
 
-from datetime import date
+import uuid
+from datetime import UTC, date, datetime
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -17,7 +18,7 @@ from src.domain.alert.repository import AlertRepository
 from src.domain.gate.aggregate import GateStatus, LeaderGate, LeaderGateId
 from src.domain.gate.repository import LeaderGateRepository
 from src.domain.member.aggregate import Member
-from src.domain.member.repository import MemberRepository
+from src.domain.member.repository import MemberRepository, ProjectMemberRepository
 from src.domain.member.value_objects import MemberId
 from src.domain.project.aggregate import Project
 from src.domain.project.repository import ProjectRepository
@@ -31,6 +32,7 @@ from src.infrastructure.db.models import (
     DailyReportModel,
     LeaderGateModel,
     MemberModel,
+    ProjectMemberModel,
     ProjectModel,
     TaskModel,
 )
@@ -170,6 +172,16 @@ class SqlAlchemyMemberRepository(MemberRepository):
             rows = (await session.execute(select(MemberModel))).scalars().all()
             return [member_from_model(r) for r in rows]
 
+    async def find_by_project_id(self, project_id: ProjectId) -> list[Member]:
+        async with self._session_factory() as session:
+            stmt = (
+                select(MemberModel)
+                .join(ProjectMemberModel, ProjectMemberModel.member_id == MemberModel.id)
+                .where(ProjectMemberModel.project_id == str(project_id))
+            )
+            rows = (await session.execute(stmt)).scalars().all()
+            return [member_from_model(r) for r in rows]
+
     async def save(self, member: Member) -> Member:
         async with self._session_factory() as session:
             member_id = str(member.member_id)
@@ -195,6 +207,52 @@ class SqlAlchemyMemberRepository(MemberRepository):
         async with self._session_factory() as session:
             await session.execute(delete(MemberModel).where(MemberModel.id == str(member_id)))
             await session.commit()
+
+
+class SqlAlchemyProjectMemberRepository(ProjectMemberRepository):
+    """Project ↔ Member メンバーシップの PostgreSQL 永続化。"""
+
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._session_factory = session_factory
+
+    async def add(self, project_id: ProjectId, member_id: MemberId) -> None:
+        async with self._session_factory() as session:
+            existing = (
+                await session.execute(
+                    select(ProjectMemberModel).where(
+                        ProjectMemberModel.project_id == str(project_id),
+                        ProjectMemberModel.member_id == str(member_id),
+                    )
+                )
+            ).scalar_one_or_none()
+            if existing is None:
+                session.add(
+                    ProjectMemberModel(
+                        id=str(uuid.uuid4()),
+                        project_id=str(project_id),
+                        member_id=str(member_id),
+                        joined_at=datetime.now(UTC),
+                    )
+                )
+                await session.commit()
+
+    async def remove(self, project_id: ProjectId, member_id: MemberId) -> None:
+        async with self._session_factory() as session:
+            await session.execute(
+                delete(ProjectMemberModel).where(
+                    ProjectMemberModel.project_id == str(project_id),
+                    ProjectMemberModel.member_id == str(member_id),
+                )
+            )
+            await session.commit()
+
+    async def list_member_ids(self, project_id: ProjectId) -> list[str]:
+        async with self._session_factory() as session:
+            stmt = select(ProjectMemberModel.member_id).where(
+                ProjectMemberModel.project_id == str(project_id)
+            )
+            rows = (await session.execute(stmt)).scalars().all()
+            return list(rows)
 
 
 class SqlAlchemyAlertRepository(AlertRepository):

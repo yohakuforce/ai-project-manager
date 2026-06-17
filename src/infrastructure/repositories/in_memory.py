@@ -13,7 +13,7 @@ from src.domain.alert.repository import AlertRepository
 from src.domain.gate.aggregate import GateStatus, LeaderGate, LeaderGateId
 from src.domain.gate.repository import LeaderGateRepository
 from src.domain.member.aggregate import Member
-from src.domain.member.repository import MemberRepository
+from src.domain.member.repository import MemberRepository, ProjectMemberRepository
 from src.domain.member.value_objects import MemberId
 from src.domain.project.aggregate import Project
 from src.domain.project.repository import ProjectRepository
@@ -51,6 +51,8 @@ class InMemoryProjectRepository(ProjectRepository):
 class InMemoryMemberRepository(MemberRepository):
     def __init__(self) -> None:
         self._store: dict[str, Member] = {}
+        # project_id (str) → set of member_id (str)
+        self._memberships: dict[str, set[str]] = {}
 
     async def find_by_id(self, member_id: MemberId) -> Member | None:
         return self._store.get(str(member_id))
@@ -64,6 +66,10 @@ class InMemoryMemberRepository(MemberRepository):
     async def find_all(self) -> list[Member]:
         return list(self._store.values())
 
+    async def find_by_project_id(self, project_id: ProjectId) -> list[Member]:
+        member_ids = self._memberships.get(str(project_id), set())
+        return [m for m in self._store.values() if str(m.member_id) in member_ids]
+
     async def save(self, member: Member) -> Member:
         self._store[str(member.member_id)] = member
         return member
@@ -73,6 +79,37 @@ class InMemoryMemberRepository(MemberRepository):
 
     def clear(self) -> None:
         self._store.clear()
+        self._memberships.clear()
+
+
+class InMemoryProjectMemberRepository(ProjectMemberRepository):
+    """Project ↔ Member メンバーシップのインメモリ実装。
+
+    InMemoryMemberRepository と同じ _memberships dict を共有することで、
+    find_by_project_id が最新状態を反映できる。
+    """
+
+    def __init__(self, member_repo: InMemoryMemberRepository) -> None:
+        self._member_repo = member_repo
+
+    async def add(self, project_id: ProjectId, member_id: MemberId) -> None:
+        pid = str(project_id)
+        mid = str(member_id)
+        if pid not in self._member_repo._memberships:
+            self._member_repo._memberships[pid] = set()
+        self._member_repo._memberships[pid].add(mid)
+
+    async def remove(self, project_id: ProjectId, member_id: MemberId) -> None:
+        pid = str(project_id)
+        mid = str(member_id)
+        if pid in self._member_repo._memberships:
+            self._member_repo._memberships[pid].discard(mid)
+
+    async def list_member_ids(self, project_id: ProjectId) -> list[str]:
+        return list(self._member_repo._memberships.get(str(project_id), set()))
+
+    def clear(self) -> None:
+        self._member_repo._memberships.clear()
 
 
 class InMemoryAlertRepository(AlertRepository):

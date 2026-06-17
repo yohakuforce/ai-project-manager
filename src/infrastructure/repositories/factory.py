@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from src.config.settings import Settings
 from src.domain.alert.repository import AlertRepository
 from src.domain.gate.repository import LeaderGateRepository
-from src.domain.member.repository import MemberRepository
+from src.domain.member.repository import MemberRepository, ProjectMemberRepository
 from src.domain.project.repository import ProjectRepository
 from src.domain.reporting.repository import DailyReportRepository
 from src.infrastructure.repositories.in_memory import (
@@ -23,6 +23,7 @@ from src.infrastructure.repositories.in_memory import (
     InMemoryDailyReportRepository,
     InMemoryLeaderGateRepository,
     InMemoryMemberRepository,
+    InMemoryProjectMemberRepository,
     InMemoryProjectRepository,
 )
 from src.infrastructure.repositories.sqlalchemy import (
@@ -30,6 +31,7 @@ from src.infrastructure.repositories.sqlalchemy import (
     SqlAlchemyDailyReportRepository,
     SqlAlchemyLeaderGateRepository,
     SqlAlchemyMemberRepository,
+    SqlAlchemyProjectMemberRepository,
     SqlAlchemyProjectRepository,
 )
 
@@ -46,6 +48,7 @@ class RepositoryBundle:
 
     project: ProjectRepository
     member: MemberRepository
+    project_member: ProjectMemberRepository
     alert: AlertRepository
     report: DailyReportRepository
     gate: LeaderGateRepository
@@ -65,9 +68,11 @@ def build_repositories(settings: Settings) -> RepositoryBundle:
             "USE_DATABASE=False のため InMemory リポジトリを使用します。"
             "production では USE_DATABASE=True に設定してください。"
         )
+        member_repo = InMemoryMemberRepository()
         return RepositoryBundle(
             project=InMemoryProjectRepository(),
-            member=InMemoryMemberRepository(),
+            member=member_repo,
+            project_member=InMemoryProjectMemberRepository(member_repo),
             alert=InMemoryAlertRepository(),
             report=InMemoryDailyReportRepository(),
             gate=InMemoryLeaderGateRepository(),
@@ -82,6 +87,7 @@ def build_repositories(settings: Settings) -> RepositoryBundle:
     return RepositoryBundle(
         project=SqlAlchemyProjectRepository(session_factory),
         member=SqlAlchemyMemberRepository(session_factory),
+        project_member=SqlAlchemyProjectMemberRepository(session_factory),
         alert=SqlAlchemyAlertRepository(session_factory),
         report=SqlAlchemyDailyReportRepository(session_factory),
         gate=SqlAlchemyLeaderGateRepository(session_factory),
